@@ -189,3 +189,18 @@ class ToolCall(BaseModel):
             "name": self.function_name,
             "input": self.arguments,
         }
+    @staticmethod
+    def to_message(tool_call: ToolCall, result: Any) -> Message:
+        """Create a TOOL-role message from a tool call and its result.
+
+        Args:
+            tool_call: The ToolCall instance
+            result: The execution result (will be stringified if not a string)
+
+        Returns:
+            Message with TOOL role
+        """
+        from ai_lib_python.types.message import Message
+
+        content = result if isinstance(result, str) else str(result)
+        return Message.tool(tool_call_id=tool_call.id, content=content)
