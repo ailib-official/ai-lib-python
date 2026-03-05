@@ -7,7 +7,10 @@ Provides schema generation from Python types and Pydantic models.
 from __future__ import annotations
 
 import json
-from typing import Any, get_args, get_origin
+from typing import TYPE_CHECKING, Any, get_args, get_origin
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 
 def json_schema_from_type(python_type: type) -> dict[str, Any]:
@@ -100,7 +103,7 @@ def json_schema_from_type(python_type: type) -> dict[str, Any]:
     return {"type": "object"}
 
 
-def json_schema_from_pydantic(model: type) -> dict[str, Any]:
+def json_schema_from_pydantic(model: type[BaseModel]) -> dict[str, Any]:
     """Generate JSON schema from a Pydantic model.
 
     Args:
@@ -122,7 +125,10 @@ def json_schema_from_pydantic(model: type) -> dict[str, Any]:
     if not hasattr(model, "model_json_schema"):
         raise ValueError(f"{model} is not a Pydantic model")
 
-    return model.model_json_schema()
+    schema = model.model_json_schema()
+    if isinstance(schema, dict):
+        return schema
+    raise ValueError(f"{model} did not return a valid schema object")
 
 
 class SchemaGenerator:
@@ -292,7 +298,7 @@ class SchemaGenerator:
         return json.dumps(self.build(), indent=indent)
 
     @classmethod
-    def from_pydantic(cls, model: type) -> SchemaGenerator:
+    def from_pydantic(cls, model: type[BaseModel]) -> SchemaGenerator:
         """Create generator from Pydantic model.
 
         Args:

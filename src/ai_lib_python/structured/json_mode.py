@@ -257,7 +257,9 @@ def extract_json(text: str) -> dict[str, Any] | None:
 
     # Try direct parsing first
     try:
-        return json.loads(text)
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return parsed
     except json.JSONDecodeError:
         pass
 
@@ -274,7 +276,9 @@ def extract_json(text: str) -> dict[str, Any] | None:
         if match:
             try:
                 candidate = match.group(1) if match.lastindex else match.group(0)
-                return json.loads(candidate.strip())
+                parsed = json.loads(candidate.strip())
+                if isinstance(parsed, dict):
+                    return parsed
             except (json.JSONDecodeError, IndexError):
                 continue
 

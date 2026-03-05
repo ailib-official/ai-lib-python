@@ -123,7 +123,6 @@ module = [
     "ai_lib_python.guardrails.*",
     "ai_lib_python.pipeline.*",
     "ai_lib_python.resilience.*",
-    "ai_lib_python.structured.*",
 ]
 ignore_errors = true
 

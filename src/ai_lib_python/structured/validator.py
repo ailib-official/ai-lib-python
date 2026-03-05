@@ -10,7 +10,10 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
+from pydantic import BaseModel
+
 T = TypeVar("T")
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class ValidationError(Exception):
@@ -92,7 +95,7 @@ class OutputValidator:
 
     def __init__(
         self,
-        schema: dict[str, Any] | type | None = None,
+        schema: dict[str, Any] | type[BaseModel] | None = None,
         strict: bool = True,
     ) -> None:
         """Initialize validator.
@@ -101,7 +104,7 @@ class OutputValidator:
             schema: JSON schema dict or Pydantic model class
             strict: Whether to use strict validation
         """
-        self._pydantic_model: type | None = None
+        self._pydantic_model: type[BaseModel] | None = None
         self._json_schema: dict[str, Any] | None = None
         self._strict = strict
 
@@ -165,7 +168,7 @@ class OutputValidator:
         result.raise_if_invalid()
         return result.data
 
-    def parse(self, data: str | dict[str, Any], model: type[T]) -> T:
+    def parse(self, data: str | dict[str, Any], model: type[ModelT]) -> ModelT:
         """Parse and validate data into a Pydantic model.
 
         Args:
@@ -200,8 +203,11 @@ class OutputValidator:
         Returns:
             ValidationResult
         """
+        model = self._pydantic_model
+        if model is None:
+            return ValidationResult(valid=False, errors=["No Pydantic model configured"])
         try:
-            validated = self._pydantic_model.model_validate(data)
+            validated = model.model_validate(data)
             return ValidationResult(valid=True, data=validated)
         except Exception as e:
             return ValidationResult(
@@ -220,8 +226,12 @@ class OutputValidator:
         """
         errors: list[str] = []
 
+        schema = self._json_schema
+        if schema is None:
+            return ValidationResult(valid=False, errors=["No JSON schema configured"])
+
         # Basic type checking
-        schema_type = self._json_schema.get("type")
+        schema_type = schema.get("type")
         if schema_type == "object" and not isinstance(data, dict):
             return ValidationResult(
                 valid=False,
@@ -229,13 +239,13 @@ class OutputValidator:
             )
 
         # Validate required properties
-        required = self._json_schema.get("required", [])
+        required = schema.get("required", [])
         for prop in required:
             if prop not in data:
                 errors.append(f"Missing required property: {prop}")
 
         # Validate property types
-        properties = self._json_schema.get("properties", {})
+        properties = schema.get("properties", {})
         for prop_name, prop_schema in properties.items():
             if prop_name in data:
                 prop_errors = self._validate_property(
@@ -244,7 +254,7 @@ class OutputValidator:
                 errors.extend(prop_errors)
 
         # Check additional properties
-        additional_props = self._json_schema.get("additionalProperties", True)
+        additional_props = schema.get("additionalProperties", True)
         if additional_props is False:
             extra_props = set(data.keys()) - set(properties.keys())
             for prop in extra_props:
