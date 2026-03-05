@@ -138,7 +138,7 @@ class JsonPathSelector(Transform):
         if "[*]" in path:
             return self._get_wildcard_value(frame, path)
 
-        current = frame
+        current: Any = frame
 
         # Split path by dots and brackets
         parts = self._split_path(path)

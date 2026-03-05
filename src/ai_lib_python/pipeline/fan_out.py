@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from ai_lib_python.pipeline.base import Transform
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Callable
 
 
 class FanOutTransform(Transform):
@@ -145,7 +145,7 @@ class FanOutTransform(Transform):
         Returns:
             Value at path or None
         """
-        current = obj
+        current: Any = obj
         for part in path.split("."):
             if isinstance(current, dict):
                 current = current.get(part)
@@ -219,7 +219,7 @@ class SplitTransform(Transform):
 
     def __init__(
         self,
-        predicate: callable | None = None,
+        predicate: Callable[[Any], bool] | None = None,
         collect_filtered: bool = True,
     ) -> None:
         """Initialize split transform.

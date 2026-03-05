@@ -253,7 +253,7 @@ class DefaultEventMapper(EventMapper):
         Returns:
             Value at path, or None
         """
-        current = data
+        current: Any = data
 
         for part in path.replace("[", ".").replace("]", "").split("."):
             if not part:

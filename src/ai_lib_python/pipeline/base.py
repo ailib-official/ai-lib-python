@@ -24,7 +24,7 @@ class Decoder(ABC):
     """
 
     @abstractmethod
-    async def decode(
+    def decode(
         self, byte_stream: AsyncIterator[bytes]
     ) -> AsyncIterator[dict[str, Any]]:
         """Decode a byte stream into JSON frames.
@@ -46,7 +46,7 @@ class Transform(ABC):
     """
 
     @abstractmethod
-    async def transform(
+    def transform(
         self, frames: AsyncIterator[dict[str, Any]]
     ) -> AsyncIterator[dict[str, Any]]:
         """Transform a stream of frames.
@@ -68,7 +68,7 @@ class EventMapper(ABC):
     """
 
     @abstractmethod
-    async def map_events(
+    def map_events(
         self, frames: AsyncIterator[dict[str, Any]]
     ) -> AsyncIterator[StreamingEvent]:
         """Map frames to streaming events.

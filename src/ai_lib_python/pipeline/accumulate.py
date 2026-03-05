@@ -64,7 +64,7 @@ class ToolCallAccumulator(Transform):
         if path.startswith("$."):
             path = path[2:]
 
-        current = frame
+        current: Any = frame
 
         # Handle array wildcards by getting first match
         parts = path.replace("[*]", ".0.").split(".")
@@ -156,7 +156,7 @@ class ToolCallAccumulator(Transform):
         tool_calls: list[dict[str, Any]] = []
 
         # Try OpenAI format: choices[*].delta.tool_calls[*]
-        choices = frame.get("choices", [])
+        choices: Any = frame.get("choices", [])
         for choice in choices:
             delta = choice.get("delta", {})
             tcs = delta.get("tool_calls", [])
