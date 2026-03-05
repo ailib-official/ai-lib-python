@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -29,14 +29,14 @@ class GuardrailViolation:
     message: str
     severity: GuardrailSeverity
     matched_text: str | None = None
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Validate severity."""
         if not isinstance(self.severity, GuardrailSeverity):
             self.severity = GuardrailSeverity(self.severity)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert violation to dictionary."""
         return {
             "rule_id": self.rule_id,
@@ -54,7 +54,7 @@ class GuardrailResult:
     is_safe: bool
     violations: list[GuardrailViolation] = field(default_factory=list)
     filtered_content: str | None = None
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def safe(cls, content: str | None = None) -> GuardrailResult:
@@ -74,7 +74,7 @@ class GuardrailResult:
             filtered_content=filtered_content,
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary."""
         return {
             "is_safe": self.is_safe,
@@ -303,7 +303,7 @@ class ConditionalGuardrail(Guardrail):
         self,
         rule_id: str,
         guardrail: Guardrail,
-        condition: Callable[[dict], bool],
+        condition: Callable[[dict[str, Any]], bool],
         severity: GuardrailSeverity = GuardrailSeverity.WARNING,
     ) -> None:
         """Initialize conditional guardrail.
@@ -317,9 +317,9 @@ class ConditionalGuardrail(Guardrail):
         super().__init__(rule_id, severity)
         self._guardrail = guardrail
         self._condition = condition
-        self._context: dict = {}
+        self._context: dict[str, Any] = {}
 
-    def set_context(self, context: dict) -> None:
+    def set_context(self, context: dict[str, Any]) -> None:
         """Set the context for condition evaluation."""
         self._context = context
 

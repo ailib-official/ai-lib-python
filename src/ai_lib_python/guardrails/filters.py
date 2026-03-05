@@ -5,12 +5,17 @@ Concrete filter implementations for common guardrail use cases.
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
 from ai_lib_python.guardrails.base import (
     Guardrail,
     GuardrailResult,
     GuardrailSeverity,
+    GuardrailViolation,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class KeywordFilter(Guardrail):
@@ -115,19 +120,13 @@ class KeywordFilter(Guardrail):
         self,
         message: str,
         matched_text: str,
-    ) -> GuardrailResult:
-        """Create a violation result."""
-        from ai_lib_python.guardrails.base import GuardrailViolation
-
-        return GuardrailResult.violated(
-            [
-                GuardrailViolation(
-                    rule_id=self._rule_id,
-                    message=message,
-                    severity=self._severity,
-                    matched_text=matched_text,
-                )
-            ]
+    ) -> GuardrailViolation:
+        """Create a violation."""
+        return GuardrailViolation(
+            rule_id=self._rule_id,
+            message=message,
+            severity=self._severity,
+            matched_text=matched_text,
         )
 
 
@@ -170,7 +169,7 @@ class RegexFilter(Guardrail):
         self._message = message
 
     @property
-    def pattern(self) -> re.Pattern:
+    def pattern(self) -> re.Pattern[str]:
         """Get the compiled pattern."""
         return self._pattern
 
@@ -247,6 +246,7 @@ class LengthFilter(Guardrail):
         self._min_length = min_length
         self._max_length = max_length
         self._count_mode = count_mode
+        self._counter: Callable[[str], int]
 
         if count_mode == "chars":
             self._counter = len
@@ -267,8 +267,6 @@ class LengthFilter(Guardrail):
         violations = []
 
         if self._min_length is not None and length < self._min_length:
-            from ai_lib_python.guardrails.base import GuardrailViolation
-
             violations.append(
                 GuardrailViolation(
                     rule_id=self._rule_id,
@@ -278,8 +276,6 @@ class LengthFilter(Guardrail):
             )
 
         if self._max_length is not None and length > self._max_length:
-            from ai_lib_python.guardrails.base import GuardrailViolation
-
             violations.append(
                 GuardrailViolation(
                     rule_id=self._rule_id,
@@ -346,12 +342,12 @@ class ProfanityFilter(Guardrail):
                 # Find the actual matched text (preserving case)
                 pattern = re.escape(keyword)
                 if not self._case_sensitive:
-                    pattern = re.compile(pattern, re.IGNORECASE)
+                    pattern_obj = re.compile(pattern, re.IGNORECASE)
+                else:
+                    pattern_obj = re.compile(pattern)
 
-                match = pattern.search(content)
+                match = pattern_obj.search(content)
                 if match:
-                    from ai_lib_python.guardrails.base import GuardrailViolation
-
                     violations.append(
                         GuardrailViolation(
                             rule_id=self._rule_id,
@@ -457,19 +453,13 @@ class UrlFilter(Guardrail):
 
         return GuardrailResult.safe(content=content)
 
-    def _create_url_violation(self, message: str, url: str) -> GuardrailResult:
-        """Create a URL violation result."""
-        from ai_lib_python.guardrails.base import GuardrailViolation
-
-        return GuardrailResult.violated(
-            [
-                GuardrailViolation(
-                    rule_id=self._rule_id,
-                    message=message,
-                    severity=self._severity,
-                    matched_text=url,
-                )
-            ]
+    def _create_url_violation(self, message: str, url: str) -> GuardrailViolation:
+        """Create a URL violation."""
+        return GuardrailViolation(
+            rule_id=self._rule_id,
+            message=message,
+            severity=self._severity,
+            matched_text=url,
         )
 
 
@@ -561,17 +551,11 @@ class EmailFilter(Guardrail):
         """Replace email addresses."""
         return self._EMAIL_PATTERN.sub(self._replacement, content)
 
-    def _create_email_violation(self, message: str, email: str) -> GuardrailResult:
-        """Create an email violation result."""
-        from ai_lib_python.guardrails.base import GuardrailViolation
-
-        return GuardrailResult.violated(
-            [
-                GuardrailViolation(
-                    rule_id=self._rule_id,
-                    message=message,
-                    severity=self._severity,
-                    matched_text=email,
-                )
-            ]
+    def _create_email_violation(self, message: str, email: str) -> GuardrailViolation:
+        """Create an email violation."""
+        return GuardrailViolation(
+            rule_id=self._rule_id,
+            message=message,
+            severity=self._severity,
+            matched_text=email,
         )

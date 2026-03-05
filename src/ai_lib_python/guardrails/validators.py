@@ -102,7 +102,7 @@ class ContentValidator:
         Returns:
             Configured ContentValidator
         """
-        guardrails = [
+        guardrails: list[Guardrail] = [
             LengthFilter(
                 rule_id="input-length",
                 min_length=1,
@@ -149,7 +149,7 @@ class ContentValidator:
         Returns:
             Configured ContentValidator
         """
-        guardrails = [
+        guardrails: list[Guardrail] = [
             LengthFilter(
                 rule_id="output-length",
                 min_length=1,
@@ -199,7 +199,7 @@ class ContentValidator:
         Returns:
             Configured ContentValidator
         """
-        guardrails = [
+        guardrails: list[Guardrail] = [
             # Email addresses
             EmailFilter(
                 rule_id="pii-email",
@@ -257,7 +257,7 @@ class ContentValidator:
         Returns:
             Configured ContentValidator
         """
-        guardrails = []
+        guardrails: list[Guardrail] = []
 
         if forbidden_keywords:
             guardrails.append(
@@ -310,7 +310,7 @@ class ContentValidator:
         Returns:
             Configured ContentValidator
         """
-        guardrails = [
+        guardrails: list[Guardrail] = [
             # Allow URLs (useful for code examples)
             UrlFilter(
                 rule_id="code-urls",
@@ -377,7 +377,7 @@ class SafetyValidator(ContentValidator):
             block_harmful: Block harmful content
             block_profane: Block profane content
         """
-        guardrails = []
+        guardrails: list[Guardrail] = []
 
         if block_self_harm:
             guardrails.append(
@@ -444,7 +444,7 @@ class ComplianceValidator(ContentValidator):
             hipaa_mode: Enable HIPAA compliance (detect PHI)
             severity: Severity level for violations
         """
-        guardrails = []
+        guardrails: list[Guardrail] = []
 
         if gdpr_mode:
             # GDPR: Detect and block PII
