@@ -7,14 +7,14 @@ both user inputs and AI model outputs to ensure safety and compliance.
 Core principle: All logic is operators, all configuration is protocol.
 """
 
-from ai_lib_python.guardrails.base import Guardrail, GuardrailViolation, GuardrailResult
+from ai_lib_python.guardrails.base import Guardrail, GuardrailResult, GuardrailViolation
 from ai_lib_python.guardrails.filters import (
+    EmailFilter,
     KeywordFilter,
-    RegexFilter,
     LengthFilter,
     ProfanityFilter,
+    RegexFilter,
     UrlFilter,
-    EmailFilter,
 )
 from ai_lib_python.guardrails.validators import ContentValidator
 

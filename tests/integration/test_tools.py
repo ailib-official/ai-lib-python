@@ -128,7 +128,9 @@ class TestToolCalling:
     @pytest.mark.asyncio
     async def test_tool_choice_auto(self, httpx_mock) -> None:
         """Test tool_choice='auto'."""
-        from tests.integration.conftest import mock_openai_tool_call_response, setup_mock_openai_response
+        from tests.integration.conftest import (
+            setup_mock_openai_response,
+        )
 
         tool = ToolDefinition.from_function(
             name="get_weather",
@@ -190,7 +192,9 @@ class TestToolCalling:
     @pytest.mark.asyncio
     async def test_tool_response_to_message(self, httpx_mock) -> None:
         """Test converting tool response to message."""
-        from tests.integration.conftest import mock_openai_tool_call_response, setup_mock_openai_response
+        from tests.integration.conftest import (
+            mock_openai_tool_call_response,
+        )
 
         # First call: tool requested
         httpx_mock.add_response(
@@ -238,6 +242,7 @@ class TestToolCalling:
             client.chat()
             .messages([
                 Message.user("What's the weather?"),
+                Message(role="assistant", tool_calls=[tool_call]),
                 tool_message,
             ])
             .tools([tool])

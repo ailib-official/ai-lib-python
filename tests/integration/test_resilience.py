@@ -7,7 +7,7 @@ Tests error scenarios, retries, and fallback mechanisms.
 import pytest
 
 from ai_lib_python.client import AiClient
-from ai_lib_python.errors import TransportError, AiLibError
+from ai_lib_python.errors import TransportError
 from ai_lib_python.types.message import Message
 
 
@@ -15,7 +15,7 @@ class TestErrorHandling:
     """Tests for error handling."""
 
     @pytest.mark.asyncio
-    async def test_api_key_missing(self, httpx_mock) -> None:
+    async def test_api_key_missing(self, _httpx_mock) -> None:
         """Test error when API key is missing."""
         with pytest.raises(ValueError, match="API key required"):
             await AiClient.create("openai/gpt-4o")
@@ -23,7 +23,6 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_invalid_model(self, httpx_mock) -> None:
         """Test error with invalid model ID."""
-        from httpx import Response
 
         httpx_mock.add_response(
             url="https://api.openai.com/v1/chat/completions",
@@ -40,7 +39,6 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_rate_limit_error(self, httpx_mock) -> None:
         """Test handling of rate limit errors."""
-        from httpx import Response
 
         httpx_mock.add_response(
             url="https://api.openai.com/v1/chat/completions",
@@ -57,7 +55,6 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_authentication_error(self, httpx_mock) -> None:
         """Test handling of authentication errors."""
-        from httpx import Response
 
         httpx_mock.add_response(
             url="https://api.openai.com/v1/chat/completions",
@@ -74,7 +71,6 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_server_error(self, httpx_mock) -> None:
         """Test handling of server errors."""
-        from httpx import Response
 
         httpx_mock.add_response(
             url="https://api.openai.com/v1/chat/completions",
@@ -127,10 +123,9 @@ class TestRetryMechanism:
     @pytest.mark.asyncio
     async def test_retry_on_transient_error(self, httpx_mock) -> None:
         """Test retry on transient server error."""
-        from tests.integration.conftest import setup_mock_openai_response
-
         # First call fails, second succeeds
-        from httpx import Response
+
+        from tests.integration.conftest import setup_mock_openai_response
 
         httpx_mock.add_response(
             url="https://api.openai.com/v1/chat/completions",
@@ -157,10 +152,9 @@ class TestRetryMechanism:
     @pytest.mark.asyncio
     async def test_retry_exhausted(self, httpx_mock) -> None:
         """Test that all retries are exhausted."""
-        from httpx import Response
 
-        # All calls fail
-        for _ in range(5):
+        # All calls fail (matching retry attempts)
+        for _ in range(3):  # 1 initial + 2 retries
             httpx_mock.add_response(
                 url="https://api.openai.com/v1/chat/completions",
                 method="POST",
@@ -187,8 +181,8 @@ class TestFallbackMechanism:
     @pytest.mark.asyncio
     async def test_fallback_to_secondary_model(self, httpx_mock) -> None:
         """Test fallback to secondary model on failure."""
+
         from tests.integration.conftest import setup_mock_anthropic_response
-        from httpx import Response
 
         # Primary model fails
         httpx_mock.add_response(
@@ -217,7 +211,6 @@ class TestFallbackMechanism:
     @pytest.mark.asyncio
     async def test_all_fallbacks_fail(self, httpx_mock) -> None:
         """Test that all fallbacks are tried before giving up."""
-        from httpx import Response
 
         # All models fail
         httpx_mock.add_response(
@@ -253,7 +246,6 @@ class TestCircuitBreaker:
     @pytest.mark.asyncio
     async def test_circuit_opens_after_failures(self, httpx_mock) -> None:
         """Test circuit opens after consecutive failures."""
-        from httpx import Response
 
         # Multiple failures
         for _ in range(5):

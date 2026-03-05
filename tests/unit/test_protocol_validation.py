@@ -1,6 +1,5 @@
 """Tests for protocol validation."""
 
-import pytest
 
 from ai_lib_python.protocol import (
     SUPPORTED_PROTOCOL_VERSIONS,

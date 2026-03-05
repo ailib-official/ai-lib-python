@@ -7,7 +7,6 @@ import pytest
 from ai_lib_python.computer_use import (
     ActionType,
     ComputerAction,
-    CuProviderConfig,
     ImplementationStyle,
     SafetyPolicy,
     SafetyViolation,

@@ -9,6 +9,8 @@ from ai_lib_python.computer_use import (
     ImplementationStyle,
     SafetyPolicy,
     SafetyViolation,
+)
+from ai_lib_python.computer_use import (
     extract_provider_config as cu_extract,
 )
 from ai_lib_python.drivers import create_driver
@@ -16,6 +18,8 @@ from ai_lib_python.mcp import (
     McpTool,
     McpToolBridge,
     McpToolResult,
+)
+from ai_lib_python.mcp import (
     extract_provider_config as mcp_extract,
 )
 from ai_lib_python.multimodal import (
@@ -23,7 +27,7 @@ from ai_lib_python.multimodal import (
     MultimodalCapabilities,
     validate_content_modalities,
 )
-from ai_lib_python.protocol.v2.capabilities import Capability, CapabilitiesV2
+from ai_lib_python.protocol.v2.capabilities import CapabilitiesV2, Capability
 from ai_lib_python.protocol.v2.manifest import ApiStyle, EndpointV2, ManifestV2
 from ai_lib_python.registry import CapabilityRegistry
 

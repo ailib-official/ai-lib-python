@@ -77,8 +77,12 @@ class CancelToken:
 
     def _start_timeout(self) -> None:
         """Start the timeout task."""
+        timeout = self._timeout
+        if timeout is None:
+            return
+
         async def timeout_handler() -> None:
-            await asyncio.sleep(self._timeout)  # type: ignore
+            await asyncio.sleep(timeout)
             if not self._state.cancelled:
                 self.cancel(CancelReason.TIMEOUT)
 
@@ -125,7 +129,7 @@ class CancelToken:
             try:
                 result = callback(reason)
                 if asyncio.iscoroutine(result):
-                    _ = asyncio.create_task(result)  # type: ignore  # noqa: RUF006
+                    _ = asyncio.create_task(result)  # noqa: RUF006
             except Exception:
                 pass
 
@@ -185,7 +189,7 @@ class CancelToken:
             try:
                 result = callback(self._state.reason)
                 if asyncio.iscoroutine(result):
-                    _ = asyncio.create_task(result)  # type: ignore  # noqa: RUF006
+                    _ = asyncio.create_task(result)  # noqa: RUF006
             except Exception:
                 pass
         return self

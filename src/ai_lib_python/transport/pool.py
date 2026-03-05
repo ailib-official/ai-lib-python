@@ -188,6 +188,7 @@ class ConnectionPool:
                     limits=self._config.to_httpx_limits(),
                     timeout=self._config.to_httpx_timeout(),
                     http2=use_http2,
+                    trust_env=False,
                 )
 
                 self._clients[key] = client

@@ -191,7 +191,10 @@ class BatchCollector(Generic[T, R]):
 
         try:
             # Execute batch
-            results = await self._executor(data_list)
+            executor = self._executor
+            if executor is None:
+                raise RuntimeError("No executor set")
+            results = await executor(data_list)
 
             # Resolve futures
             for request, result in zip(requests, results, strict=False):

@@ -10,8 +10,8 @@ This module provides:
 
 from ai_lib_python.client.builder import AiClientBuilder, ChatRequestBuilder
 from ai_lib_python.client.cancel import (
-    CancellableStream,
     CancelHandle,
+    CancellableStream,
     CancelReason,
     CancelState,
     CancelToken,
@@ -25,11 +25,11 @@ __all__ = [
     "AiClient",
     "AiClientBuilder",
     "CallStats",
-    "CancellableStream",
     "CancelHandle",
     "CancelReason",
     "CancelState",
     "CancelToken",
+    "CancellableStream",
     "ChatRequestBuilder",
     "ChatResponse",
     "create_cancel_pair",

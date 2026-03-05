@@ -18,7 +18,7 @@ from ai_lib_python.drivers import (
 from ai_lib_python.protocol.v2.capabilities import Capability
 from ai_lib_python.protocol.v2.manifest import ApiStyle
 from ai_lib_python.types.events import StreamingEvent
-from ai_lib_python.types.message import ContentBlock, Message
+from ai_lib_python.types.message import Message
 
 
 class OpenAiDriver(ProviderDriver):

@@ -49,7 +49,6 @@ class TestProtocolLoading:
     @pytest.mark.asyncio
     async def test_custom_base_url(self, httpx_mock) -> None:
         """Test custom base URL configuration."""
-        from tests.integration.conftest import setup_mock_openai_response
 
         custom_url = "https://custom.api.example.com/v1/chat/completions"
 
@@ -137,7 +136,10 @@ class TestBuilderConfiguration:
     @pytest.mark.asyncio
     async def test_builder_multiple_api_keys(self, httpx_mock) -> None:
         """Test builder with API keys for multiple models."""
-        from tests.integration.conftest import setup_mock_openai_response, setup_mock_anthropic_response
+        from tests.integration.conftest import (
+            setup_mock_anthropic_response,
+            setup_mock_openai_response,
+        )
 
         setup_mock_openai_response(httpx_mock, content="OpenAI")
         setup_mock_anthropic_response(httpx_mock, content="Anthropic")
@@ -196,8 +198,8 @@ class TestProtocolCompatibility:
     @pytest.mark.asyncio
     async def test_tool_calling_support(self, httpx_mock) -> None:
         """Test tool calling is supported by protocol."""
-        from tests.integration.conftest import mock_openai_tool_call_response
         from ai_lib_python.types.tool import ToolDefinition
+        from tests.integration.conftest import mock_openai_tool_call_response
 
         tool = ToolDefinition.from_function(
             name="test_tool",

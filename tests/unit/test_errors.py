@@ -186,4 +186,5 @@ class TestErrorClassification:
         """Test fallbackable check."""
         assert is_fallbackable(ErrorClass.RATE_LIMITED) is True
         assert is_fallbackable(ErrorClass.QUOTA_EXHAUSTED) is True
-        assert is_fallbackable(ErrorClass.AUTHENTICATION) is False
+        # Authentication failures can fallback to alternate providers/keys.
+        assert is_fallbackable(ErrorClass.AUTHENTICATION) is True

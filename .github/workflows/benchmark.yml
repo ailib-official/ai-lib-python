@@ -2,6 +2,8 @@ name: AI-Lib Python Benchmark
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
 
 jobs:
   benchmark-smoke:
@@ -104,7 +106,6 @@ jobs:
   benchmark-full:
     name: Full Benchmark (Nightly)
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 3 * * *'
     steps:
       - uses: actions/checkout@v4
       
@@ -162,13 +163,12 @@ jobs:
                       'total_requests': data['requests']['total']
                   })
           
-          markdown = f"""# AI-Lib Python Benchmark Report - {datetime.utcnow()}
-          
-## Results Summary
-
-| Run | RPS | P99 Latency | Requests |
-|-----|-----|-------------|----------|
-"""
+          markdown = (
+              f"# AI-Lib Python Benchmark Report - {datetime.utcnow()}\n\n"
+              "## Results Summary\n\n"
+              "| Run | RPS | P99 Latency | Requests |\n"
+              "|-----|-----|-------------|----------|\n"
+          )
           
           for r in results:
               markdown += f"| {r['run']} | {r['rps']:.1f} | {r['p99']:.0f}ms | {r['total_requests']} |\n"

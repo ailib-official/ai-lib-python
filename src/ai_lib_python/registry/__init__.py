@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 from ai_lib_python.protocol.v2.capabilities import CapabilitiesV2, Capability
 
@@ -77,7 +76,7 @@ class CapabilityRegistry:
         if gaps:
             lines = [str(g) for g in gaps]
             raise RuntimeError(
-                "Missing required capabilities:\n" + "\n".join(f"  - {l}" for l in lines)
+                "Missing required capabilities:\n" + "\n".join(f"  - {line}" for line in lines)
             )
 
     def gaps(self) -> list[CapabilityGap]:

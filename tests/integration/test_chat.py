@@ -18,7 +18,7 @@ class TestBasicChat:
         """Test simple OpenAI chat request."""
         from tests.integration.conftest import setup_mock_openai_response
 
-        chunks = setup_mock_openai_response(httpx_mock, content="Hello from OpenAI!")
+        setup_mock_openai_response(httpx_mock, content="Hello from OpenAI!")
 
         client = await AiClient.create("openai/gpt-4o", api_key="sk-test")
         response = await client.chat().messages([Message.user("Hello")]).execute()
@@ -210,7 +210,7 @@ class TestStreamingChat:
 
         # Consume a few events then cancel
         count = 0
-        async for event in stream:
+        async for _event in stream:
             count += 1
             if count >= 10:
                 cancel_handle.cancel("User requested")

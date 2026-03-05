@@ -5,18 +5,12 @@ Concrete filter implementations for common guardrail use cases.
 from __future__ import annotations
 
 import re
-import string
-from typing import TYPE_CHECKING
 
 from ai_lib_python.guardrails.base import (
-    CompositeGuardrail,
     Guardrail,
     GuardrailResult,
     GuardrailSeverity,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 
 class KeywordFilter(Guardrail):
@@ -121,7 +115,7 @@ class KeywordFilter(Guardrail):
         self,
         message: str,
         matched_text: str,
-    ) -> "GuardrailResult":
+    ) -> GuardrailResult:
         """Create a violation result."""
         from ai_lib_python.guardrails.base import GuardrailViolation
 
@@ -463,7 +457,7 @@ class UrlFilter(Guardrail):
 
         return GuardrailResult.safe(content=content)
 
-    def _create_url_violation(self, message: str, url: str) -> "GuardrailResult":
+    def _create_url_violation(self, message: str, url: str) -> GuardrailResult:
         """Create a URL violation result."""
         from ai_lib_python.guardrails.base import GuardrailViolation
 
@@ -567,7 +561,7 @@ class EmailFilter(Guardrail):
         """Replace email addresses."""
         return self._EMAIL_PATTERN.sub(self._replacement, content)
 
-    def _create_email_violation(self, message: str, email: str) -> "GuardrailResult":
+    def _create_email_violation(self, message: str, email: str) -> GuardrailResult:
         """Create an email violation result."""
         from ai_lib_python.guardrails.base import GuardrailViolation
 

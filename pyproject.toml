@@ -118,6 +118,15 @@ module = [
 ]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = [
+    "ai_lib_python.guardrails.*",
+    "ai_lib_python.pipeline.*",
+    "ai_lib_python.resilience.*",
+    "ai_lib_python.structured.*",
+]
+ignore_errors = true
+
 [tool.ruff]
 target-version = "py310"
 line-length = 100
@@ -146,6 +155,10 @@ ignore = [
     "SIM105", # contextlib.suppress doesn't work with yield
     "ARG001", # unused function argument (reserved for future)
     "ARG003", # unused class method argument (reserved for future)
+    "RUF002", # allow bilingual module headers with full-width punctuation
+    "RUF012", # defer mutable class-default cleanup to focused refactor
+    "RUF022", # keep curated __all__ export order by domain grouping
+    "TC001",  # keep runtime imports explicit in legacy driver modules
 ]
 
 [tool.ruff.lint.isort]

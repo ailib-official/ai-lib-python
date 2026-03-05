@@ -7,9 +7,12 @@ Based on AI-Protocol standard_schema for tool definitions and calls.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+if TYPE_CHECKING:
+    from ai_lib_python.types.message import Message
 
 
 class ToolChoice(str, Enum):

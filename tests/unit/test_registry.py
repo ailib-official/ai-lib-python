@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from ai_lib_python.protocol.v2.capabilities import CapabilitiesV2, Capability
 from ai_lib_python.registry import CapabilityRegistry, CapabilityStatus
 

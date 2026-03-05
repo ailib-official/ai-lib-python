@@ -185,7 +185,7 @@ class HealthChecker:
         # Process results
         check_results: list[HealthCheckResult] = []
         for result in results:
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 check_results.append(
                     HealthCheckResult(
                         name="_error",

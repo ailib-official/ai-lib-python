@@ -367,7 +367,9 @@ class ProtocolManifest(BaseModel):
         """Get the chat completions endpoint path."""
         chat_config = self.endpoints.get("chat")
         if isinstance(chat_config, dict):
-            return chat_config.get("path", "/chat/completions")
+            path = chat_config.get("path")
+            if isinstance(path, str):
+                return path
         return "/chat/completions"
 
     def get_service_endpoint(self, service_name: str) -> ServiceConfig | None:

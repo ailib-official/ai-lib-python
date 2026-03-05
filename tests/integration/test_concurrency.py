@@ -9,6 +9,7 @@ import asyncio
 import pytest
 
 from ai_lib_python.client import AiClient
+from ai_lib_python.errors import TransportError
 from ai_lib_python.types.message import Message
 
 
@@ -139,7 +140,10 @@ class TestConcurrency:
     @pytest.mark.asyncio
     async def test_concurrent_with_different_models(self, httpx_mock) -> None:
         """Test concurrent requests to different models."""
-        from tests.integration.conftest import setup_mock_openai_response, setup_mock_anthropic_response
+        from tests.integration.conftest import (
+            setup_mock_anthropic_response,
+            setup_mock_openai_response,
+        )
 
         # Setup responses for different models
         setup_mock_openai_response(httpx_mock, content="OpenAI response")
@@ -163,7 +167,10 @@ class TestConcurrency:
     @pytest.mark.asyncio
     async def test_concurrent_with_fallbacks(self, httpx_mock) -> None:
         """Test concurrent requests with fallback behavior."""
-        from tests.integration.conftest import setup_mock_openai_response, setup_mock_anthropic_response
+        from tests.integration.conftest import (
+            setup_mock_anthropic_response,
+            setup_mock_openai_response,
+        )
 
         # Some requests use primary, some use fallback
         setup_mock_openai_response(httpx_mock, content="Primary works")
@@ -245,7 +252,6 @@ class TestResourceManagement:
     @pytest.mark.asyncio
     async def test_cleanup_on_error(self, httpx_mock) -> None:
         """Test resources are cleaned up on errors."""
-        from httpx import Response
 
         # Fail first request, succeed second
         httpx_mock.add_response(
@@ -261,7 +267,7 @@ class TestResourceManagement:
         client = await AiClient.create("openai/gpt-4o", api_key="sk-test")
 
         # First request fails
-        with pytest.raises(Exception):
+        with pytest.raises(TransportError):
             await client.chat().messages([Message.user("Fail")]).execute()
 
         # Client should still work for second request

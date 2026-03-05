@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from ai_lib_python.mcp import (
-    McpProviderConfig,
     McpTool,
     McpToolBridge,
     McpToolResult,

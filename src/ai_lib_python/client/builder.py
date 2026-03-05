@@ -52,6 +52,7 @@ class AiClientBuilder:
         self._rate_limit_config: RateLimiterConfig | None = None
         self._circuit_breaker_config: CircuitBreakerConfig | None = None
         self._resilient_config: ResilientConfig | None = None
+        self._api_keys: dict[str, str] = {}
 
     def model(self, model_id: str) -> AiClientBuilder:
         """Set the model to use.
@@ -147,6 +148,37 @@ class AiClientBuilder:
             Self for chaining
         """
         self._max_inflight = n
+        return self
+
+    def retry(self, max_attempts: int = 3, backoff: float = 1.0) -> AiClientBuilder:
+        """Configure retry policy with simple parameters.
+
+        Args:
+            max_attempts: Maximum number of attempts (including initial)
+            backoff: Backoff base in seconds
+
+        Returns:
+            Self for chaining
+        """
+        from ai_lib_python.resilience import RetryConfig
+
+        self._retry_config = RetryConfig(
+            max_retries=max_attempts - 1,
+            min_delay_ms=int(backoff * 1000),
+        )
+        return self
+
+    def api_key_for(self, model_id: str, key: str) -> AiClientBuilder:
+        """Set API key for a specific fallback model.
+
+        Args:
+            model_id: Model identifier
+            key: API key to use for this model
+
+        Returns:
+            Self for chaining
+        """
+        self._api_keys[model_id] = key
         return self
 
     def with_retry(self, config: RetryConfig) -> AiClientBuilder:
@@ -252,6 +284,7 @@ class AiClientBuilder:
             timeout=self._timeout,
             hot_reload=self._hot_reload,
             resilient_config=resilient_config,
+            api_keys=self._api_keys,
         )
 
 

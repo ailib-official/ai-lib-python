@@ -31,7 +31,10 @@ class LogLevel(str, Enum):
 
     def to_logging_level(self) -> int:
         """Convert to standard logging level."""
-        return getattr(logging, self.value)
+        level = getattr(logging, self.value, None)
+        if isinstance(level, int):
+            return level
+        return logging.INFO
 
 
 @dataclass

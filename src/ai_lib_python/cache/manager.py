@@ -130,6 +130,7 @@ class CacheManager:
         self._key_generator = CacheKeyGenerator()
         self._stats = CacheStats()
 
+        self._backend: CacheBackend
         if not self._config.enabled:
             self._backend = NullCache()
         else:

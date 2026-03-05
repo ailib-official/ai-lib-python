@@ -7,14 +7,15 @@ compliance suite, ensuring cross-runtime behavioral consistency.
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import yaml
 
 from tests.compliance.conftest import COMPLIANCE_DIR
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def discover_test_cases(compliance_dir: Path) -> list[dict[str, Any]]:
@@ -25,7 +26,7 @@ def discover_test_cases(compliance_dir: Path) -> list[dict[str, Any]]:
         return cases
 
     for yaml_file in sorted(cases_dir.rglob("*.yaml")):
-        with open(yaml_file, encoding="utf-8") as f:
+        with yaml_file.open(encoding="utf-8") as f:
             content = f.read()
         # Multi-document YAML
         for doc in yaml.safe_load_all(content):
@@ -48,7 +49,7 @@ def _load_provider_manifest(compliance_dir: Path, manifest_path: str) -> dict[st
     path = compliance_dir / manifest_path
     if not path.exists():
         return None
-    with open(path, encoding="utf-8") as f:
+    with path.open(encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

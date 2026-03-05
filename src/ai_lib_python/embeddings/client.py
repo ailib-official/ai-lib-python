@@ -193,9 +193,12 @@ class EmbeddingClient:
         Returns:
             Endpoint path
         """
-        # Try to get from manifest, default to OpenAI-style
-        if hasattr(self._manifest, "embedding_endpoint"):
-            return self._manifest.embedding_endpoint
+        # Prefer manifest endpoint mapping when present.
+        embedding_cfg = self._manifest.endpoints.get("embeddings")
+        if isinstance(embedding_cfg, dict):
+            path = embedding_cfg.get("path")
+            if isinstance(path, str):
+                return path
         return "/v1/embeddings"
 
     @property
@@ -325,8 +328,9 @@ class EmbeddingClientBuilder:
         manifest = await loader.load_provider(provider_id)
 
         # Create transport
-        transport = HttpTransport.from_manifest(
-            manifest,
+        transport = HttpTransport(
+            manifest=manifest,
+            model_id=model_id,
             api_key=self._api_key,
             base_url_override=self._base_url,
             timeout=self._timeout,

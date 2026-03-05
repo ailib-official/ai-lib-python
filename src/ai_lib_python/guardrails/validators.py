@@ -87,7 +87,7 @@ class ContentValidator:
     def create_input_validator(
         cls,
         severity: GuardrailSeverity = GuardrailSeverity.WARNING,
-    ) -> "ContentValidator":
+    ) -> ContentValidator:
         """Create a validator for user input.
 
         Filters for common input issues:
@@ -134,7 +134,7 @@ class ContentValidator:
     def create_output_validator(
         cls,
         severity: GuardrailSeverity = GuardrailSeverity.WARNING,
-    ) -> "ContentValidator":
+    ) -> ContentValidator:
         """Create a validator for AI model output.
 
         Filters for common output issues:
@@ -188,7 +188,7 @@ class ContentValidator:
     def create_pii_validator(
         cls,
         severity: GuardrailSeverity = GuardrailSeverity.CRITICAL,
-    ) -> "ContentValidator":
+    ) -> ContentValidator:
         """Create a validator focusing on PII detection.
 
         Detects and blocks Personally Identifiable Information.
@@ -245,7 +245,7 @@ class ContentValidator:
         allowed_domains: list[str] | None = None,
         max_length: int | None = None,
         severity: GuardrailSeverity = GuardrailSeverity.WARNING,
-    ) -> "ContentValidator":
+    ) -> ContentValidator:
         """Create a custom validator with specific rules.
 
         Args:
@@ -299,7 +299,7 @@ class ContentValidator:
     def create_code_validator(
         cls,
         severity: GuardrailSeverity = GuardrailSeverity.INFO,
-    ) -> "ContentValidator":
+    ) -> ContentValidator:
         """Create a validator for code snippets.
 
         Less strict validation suitable for code-related content.

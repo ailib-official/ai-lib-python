@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import os
 
-import pytest
 import httpx
+import pytest
 
 from ai_lib_python.mcp import McpTool, McpToolBridge
-
 
 MOCK_MCP_URL = os.getenv("MOCK_MCP_URL", "http://localhost:4010/mcp")
 

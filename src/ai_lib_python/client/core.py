@@ -56,6 +56,10 @@ class AiClient:
         model_id: str,
         fallbacks: list[str] | None = None,
         executor: ResilientExecutor | None = None,
+        loader: ProtocolLoader | None = None,
+        api_keys: dict[str, str] | None = None,
+        base_url_override: str | None = None,
+        timeout: float | None = None,
     ) -> None:
         """Initialize the client (internal use).
 
@@ -67,6 +71,10 @@ class AiClient:
         self._model_id = model_id
         self._fallbacks = fallbacks or []
         self._executor = executor
+        self._loader = loader
+        self._api_keys = api_keys or {}
+        self._base_url_override = base_url_override
+        self._timeout = timeout
 
     @classmethod
     async def create(
@@ -131,6 +139,7 @@ class AiClient:
         timeout: float | None = None,
         hot_reload: bool = False,
         resilient_config: ResilientConfig | None = None,
+        api_keys: dict[str, str] | None = None,
     ) -> AiClient:
         """Internal creation method.
 
@@ -181,9 +190,13 @@ class AiClient:
             manifest=manifest,
             transport=transport,
             pipeline=pipeline,
-            model_id=model_id,
+            model_id=model,  # Keep the full model name including provider
             fallbacks=fallbacks,
             executor=executor,
+            loader=loader,
+            api_keys=api_keys,
+            base_url_override=base_url_override,
+            timeout=timeout,
         )
 
     def chat(self) -> ChatRequestBuilder:
@@ -203,7 +216,7 @@ class AiClient:
         return ChatRequestBuilder(self)
 
     async def _execute_chat(self, builder: ChatRequestBuilder) -> ChatResponse:
-        """Execute a non-streaming chat request.
+        """Execute a non-streaming chat request with fallback support.
 
         Args:
             builder: Configured request builder
@@ -211,19 +224,89 @@ class AiClient:
         Returns:
             ChatResponse with the completion
         """
-        async def do_request() -> ChatResponse:
-            payload = builder.build_payload()
-            endpoint = self._manifest.get_chat_endpoint()
+        models_to_try = [self._model_id, *self._fallbacks]
+        last_error = None
 
-            response = await self._transport.post(endpoint, json=payload)
-            data = response.json()
+        for model in models_to_try:
+            try:
+                # 1. Resolve manifest and transport for this model
+                if model == self._model_id:
+                    manifest = self._manifest
+                    transport = self._transport
+                    pipeline = self._pipeline
+                else:
+                    # Dynamic load for fallback
+                    if not self._loader:
+                        raise ValueError("ProtocolLoader missing for fallback")
+                    manifest = await self._loader.load_model(model)
 
-            return self._parse_response(data)
+                    parts = model.split("/")
+                    m_id = parts[1] if len(parts) >= 2 else model
 
-        # Use executor if available for resilience
-        if self._executor:
-            return await self._executor.execute(do_request)
-        return await do_request()
+                    # Resolve key for this model
+                    m_key = self._api_keys.get(model)
+
+                    from ai_lib_python.transport import HttpTransport
+                    transport = HttpTransport(
+                        manifest=manifest,
+                        model_id=m_id,
+                        api_key=m_key,
+                        base_url_override=self._base_url_override,
+                        timeout=self._timeout,
+                    )
+                    pipeline = Pipeline.from_manifest(manifest)
+
+                async def do_request(
+                    m: ProtocolManifest = manifest,
+                    t: HttpTransport = transport,
+                    p: Pipeline = pipeline,
+                    mid: str = model,
+                ) -> ChatResponse:
+                    # Debug print for model being used
+                    print(f"DEBUG: Executing request for model: {mid}, manifest ID: {m.id}")
+
+                    # Update builder's client temporary context?
+                    # Actually builder.build_payload() uses self._client._model_id
+                    # This is tricky as builder is bound to the primary client.
+                    # We need to temporarily override the client context in the builder.
+
+                    # Create a temporary builder/payload
+                    # For simplicity, we'll just manually build the payload here or
+                    # temporarily swap self._model_id (hacky but it works for this pattern)
+                    original_model_id = self._model_id
+                    original_manifest = self._manifest
+                    try:
+                        self._model_id = mid
+                        self._manifest = m
+                        payload = builder.build_payload()
+                        print(f"DEBUG: Payload model: {payload.get('model')}")
+                    finally:
+                        self._model_id = original_model_id
+                        self._manifest = original_manifest
+
+                    endpoint = m.get_chat_endpoint()
+                    print(f"DEBUG: Endpoint: {endpoint}")
+                    response = await t.post(endpoint, json=payload)
+                    data = response.json()
+
+                    # Parse using the correct pipeline
+                    return self._parse_response(data)
+
+                # Use executor if available for resilience
+                if self._executor:
+                    return await self._executor.execute(do_request)
+                return await do_request()
+
+            except Exception as e:
+                from ai_lib_python.errors import is_fallbackable
+                # Check if we should fallback
+                error_class = getattr(e, "error_class", None)
+                if model != models_to_try[-1] and (error_class is None or is_fallbackable(error_class)):
+                    last_error = e
+                    continue
+                raise e
+
+        raise last_error or RuntimeError("Fallback exhausted")
 
     async def _execute_chat_with_stats(
         self, builder: ChatRequestBuilder

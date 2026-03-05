@@ -55,7 +55,7 @@ class GeminiDriver(ProviderDriver):
     def build_request(
         self,
         messages: list[Message],
-        model: str,
+        _model: str,
         *,
         temperature: float | None = None,
         max_tokens: int | None = None,

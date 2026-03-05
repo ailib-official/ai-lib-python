@@ -112,12 +112,14 @@ class HttpTransport:
             self._timeout = _DEFAULT_TIMEOUT
 
         # Resolve proxy: default to direct connection unless trust_env is enabled.
+        proxy_value: str | None
         if proxy is not None:
-            self._proxy = proxy
+            proxy_value = proxy
         elif _trust_env_enabled():
-            self._proxy = os.getenv("AI_PROXY_URL")
+            proxy_value = os.getenv("AI_PROXY_URL")
         else:
-            self._proxy = None
+            proxy_value = None
+        self._proxy = proxy_value
 
         # Build auth headers
         self._auth_headers = get_auth_header(

@@ -1,5 +1,9 @@
 """Tests for protocol module."""
 
+import json
+import os
+from pathlib import Path
+
 import pytest
 
 from ai_lib_python.protocol import (
@@ -127,15 +131,25 @@ class TestDecoderConfig:
 class TestProtocolValidator:
     """Tests for ProtocolValidator."""
 
+    @staticmethod
+    def _load_real_manifest() -> dict:
+        """Load a real manifest from ai-protocol checkout if available."""
+        protocol_dir = os.getenv("AI_PROTOCOL_DIR")
+        if protocol_dir:
+            manifest_path = Path(protocol_dir) / "dist" / "v1" / "providers" / "openai.json"
+            if manifest_path.exists():
+                return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        local_manifest = Path(__file__).resolve().parents[3] / "ai-protocol" / "dist" / "v1" / "providers" / "openai.json"
+        if local_manifest.exists():
+            return json.loads(local_manifest.read_text(encoding="utf-8"))
+
+        pytest.skip("ai-protocol manifest not available")
+
     def test_validate_valid_manifest(self) -> None:
         """Test validating a valid manifest."""
         validator = ProtocolValidator()
-        data = {
-            "id": "test-provider",
-            "endpoint": {
-                "base_url": "https://api.example.com",
-            },
-        }
+        data = self._load_real_manifest()
         result = validator.validate(data)
         assert result.valid is True
         assert len(result.errors) == 0
@@ -170,7 +184,7 @@ class TestProtocolValidator:
     def test_is_valid(self) -> None:
         """Test is_valid convenience method."""
         validator = ProtocolValidator()
-        assert validator.is_valid({"id": "test", "endpoint": {"base_url": "https://example.com"}})
+        assert validator.is_valid(self._load_real_manifest())
         assert not validator.is_valid({})
 
 

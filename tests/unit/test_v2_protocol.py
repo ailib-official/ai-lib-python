@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-
 from ai_lib_python.protocol.v2.capabilities import (
     CapabilitiesV2,
     Capability,
-    FeatureFlags,
     LegacyCapabilities,
 )
 from ai_lib_python.protocol.v2.manifest import ApiStyle, ManifestV2

@@ -9,10 +9,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
 
     import pytest_httpx
-    from httpx import Response
 
 
 def mock_openai_chat_response(
@@ -49,7 +47,7 @@ def mock_openai_chat_response(
 def mock_openai_streaming_chunks(content: str, model: str = "gpt-4o") -> list[dict]:
     """Create mock OpenAI streaming chunks."""
     chunks = []
-    for i, char in enumerate(content):
+    for _i, char in enumerate(content):
         chunks.append({
             "id": "chatcmpl-123",
             "object": "chat.completion.chunk",
@@ -132,7 +130,7 @@ def mock_anthropic_streaming_chunks(content: str, model: str = "claude-3-5-sonne
     })
 
     # Delta chunks
-    for i, char in enumerate(content):
+    for _i, char in enumerate(content):
         chunks.append({
             "type": "content_block_delta",
             "index": 0,

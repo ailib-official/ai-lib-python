@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from ai_lib_python.drivers import (
     AnthropicDriver,
     GeminiDriver,

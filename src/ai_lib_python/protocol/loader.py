@@ -165,9 +165,15 @@ class ProtocolLoader:
                 )
 
             content = response.text
-            if path.endswith(".json"):
-                return json.loads(content)
-            return yaml.safe_load(content)
+            parsed: Any = (
+                json.loads(content) if path.endswith(".json") else yaml.safe_load(content)
+            )
+            if isinstance(parsed, dict):
+                return parsed
+            raise ProtocolError(
+                f"Protocol file did not parse to object: {url}",
+                protocol_path=url,
+            )
 
     def _load_file(self, path: Path) -> dict[str, Any]:
         """Load and parse a local file.
@@ -179,9 +185,15 @@ class ProtocolLoader:
             Parsed content
         """
         content = path.read_text(encoding="utf-8")
-        if path.suffix == ".json":
-            return json.loads(content)
-        return yaml.safe_load(content)
+        parsed: Any = (
+            json.loads(content) if path.suffix == ".json" else yaml.safe_load(content)
+        )
+        if isinstance(parsed, dict):
+            return parsed
+        raise ProtocolError(
+            f"Protocol file did not parse to object: {path}",
+            protocol_path=str(path),
+        )
 
     async def load_provider(self, provider_id: str) -> ProtocolManifest:
         """Load a provider manifest.

@@ -7,12 +7,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import httpx
-
-if TYPE_CHECKING:
-    pass
 
 
 @dataclass

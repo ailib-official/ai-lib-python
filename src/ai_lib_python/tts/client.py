@@ -8,12 +8,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
 
 import httpx
-
-if TYPE_CHECKING:
-    pass
 
 
 class AudioFormat(str, Enum):

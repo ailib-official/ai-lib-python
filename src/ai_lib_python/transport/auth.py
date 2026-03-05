@@ -82,12 +82,12 @@ def _try_keyring(provider_id: str) -> str | None:
 
         # Try with service name "ai-protocol"
         key = keyring.get_password("ai-protocol", provider_id)
-        if key:
+        if isinstance(key, str) and key:
             return key
 
         # Try with service name "ai-lib"
         key = keyring.get_password("ai-lib", provider_id)
-        if key:
+        if isinstance(key, str) and key:
             return key
 
     except ImportError:

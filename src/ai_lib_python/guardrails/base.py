@@ -57,7 +57,7 @@ class GuardrailResult:
     metadata: dict = field(default_factory=dict)
 
     @classmethod
-    def safe(cls, content: str | None = None) -> "GuardrailResult":
+    def safe(cls, content: str | None = None) -> GuardrailResult:
         """Create a safe result."""
         return cls(is_safe=True, violations=[], filtered_content=content)
 
@@ -66,7 +66,7 @@ class GuardrailResult:
         cls,
         violations: list[GuardrailViolation],
         filtered_content: str | None = None,
-    ) -> "GuardrailResult":
+    ) -> GuardrailResult:
         """Create a violated result."""
         return cls(
             is_safe=False,
