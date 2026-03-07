@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-07
+
+### Added
+
+- Cross-repo generative manifest consumption regression test: `tests/integration/test_generative_manifest_consumption.py`.
+- Capability enum/module mappings for `stt`, `tts`, and `reranking` in V2 capability declarations.
+
+### Changed
+
+- V2 manifest compatibility expanded for latest provider schema:
+  - accepts `endpoint` (Ring1) and `endpoints` (Ring3 extension map)
+  - supports structured `streaming.decoder` and list-based `streaming.event_map`
+  - supports structured `computer_use.actions`
+  - supports nested multimodal `input`/`output`/`omni_mode`
+- Multimodal capability extraction now handles `output.video` declarations.
+
 ## [0.7.5] - 2026-02-28
 
 ### Added
@@ -574,7 +590,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mypy strict mode
 - ruff linting
 
-[Unreleased]: https://github.com/hiddenpath/ai-lib-python/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/hiddenpath/ai-lib-python/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/hiddenpath/ai-lib-python/releases/tag/v0.8.0
 [0.7.0]: https://github.com/hiddenpath/ai-lib-python/releases/tag/v0.7.0
 [0.6.0]: https://github.com/hiddenpath/ai-lib-python/releases/tag/v0.6.0
 [0.5.0]: https://github.com/hiddenpath/ai-lib-python/releases/tag/v0.5.0

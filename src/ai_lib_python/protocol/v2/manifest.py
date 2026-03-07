@@ -49,9 +49,9 @@ class EndpointV2(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     base_url: str
-    chat: str = Field(default="/v1/chat/completions")
+    chat: str | dict[str, Any] = Field(default="/v1/chat/completions")
     models: str | None = None
-    embeddings: str | None = None
+    embeddings: str | dict[str, Any] | None = None
     protocol: str = "https"
     timeout_ms: int = 10_000
 
@@ -78,8 +78,8 @@ class StreamingV2(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    decoder: str = "sse"
-    event_map: dict[str, Any] = Field(default_factory=dict)
+    decoder: str | dict[str, Any] = "sse"
+    event_map: dict[str, Any] | list[dict[str, Any]] = Field(default_factory=dict)
     accumulator: dict[str, Any] = Field(default_factory=dict)
     candidates: dict[str, Any] | None = None
 
@@ -103,7 +103,7 @@ class ComputerUseConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     supported: bool = False
-    actions: list[str] = Field(default_factory=list)
+    actions: list[str] | dict[str, Any] = Field(default_factory=list)
     coordinate_system: str | None = None
     max_actions_per_turn: int | None = None
     screenshot_format: str | None = None
@@ -114,13 +114,18 @@ class MultimodalConfig(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    # Latest V2 schema (nested input/output)
+    input: dict[str, Any] | None = None
+    output: dict[str, Any] | None = None
+    omni_mode: dict[str, Any] | None = None
+
+    # Legacy flattened compatibility fields
     input_modalities: list[str] = Field(default_factory=lambda: ["text"])
     output_modalities: list[str] = Field(default_factory=lambda: ["text"])
     max_image_size_mb: float | None = None
     supported_image_formats: list[str] = Field(default_factory=list)
     audio_formats: list[str] = Field(default_factory=list)
     video_formats: list[str] = Field(default_factory=list)
-    omni_mode: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +190,8 @@ class ManifestV2(BaseModel):
     api_style: ApiStyle = Field(default=ApiStyle.OPENAI_COMPATIBLE)
 
     auth: AuthConfigV2 = Field(default_factory=AuthConfigV2)
-    endpoints: EndpointV2 | None = None
+    endpoint: EndpointV2 | None = None
+    endpoints: EndpointV2 | dict[str, Any] | None = None
     models: list[ModelDef] = Field(default_factory=list)
 
     # --- Ring 2: Capability Mapping -------------------------------------
@@ -220,12 +226,42 @@ class ManifestV2(BaseModel):
     @property
     def base_url(self) -> str:
         """Shortcut for the endpoint base URL."""
-        return self.endpoints.base_url if self.endpoints else ""
+        if self.endpoint:
+            return self.endpoint.base_url
+        if isinstance(self.endpoints, EndpointV2):
+            return self.endpoints.base_url
+        if isinstance(self.endpoints, dict):
+            maybe_base_url = self.endpoints.get("base_url")
+            if isinstance(maybe_base_url, str):
+                return maybe_base_url
+        return ""
 
     @property
     def chat_path(self) -> str:
         """Shortcut for the chat endpoint path."""
-        return self.endpoints.chat if self.endpoints else "/v1/chat/completions"
+        if self.endpoint:
+            chat = self.endpoint.chat
+            if isinstance(chat, dict):
+                path = chat.get("path")
+                if isinstance(path, str):
+                    return path
+            return chat if isinstance(chat, str) else "/v1/chat/completions"
+        if isinstance(self.endpoints, EndpointV2):
+            chat = self.endpoints.chat
+            if isinstance(chat, dict):
+                path = chat.get("path")
+                if isinstance(path, str):
+                    return path
+            return chat if isinstance(chat, str) else "/v1/chat/completions"
+        if isinstance(self.endpoints, dict):
+            maybe_chat = self.endpoints.get("chat")
+            if isinstance(maybe_chat, str):
+                return maybe_chat
+            if isinstance(maybe_chat, dict):
+                path = maybe_chat.get("path")
+                if isinstance(path, str):
+                    return path
+        return "/v1/chat/completions"
 
     def has_capability(self, cap: Any) -> bool:
         """Check if a capability is declared."""

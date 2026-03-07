@@ -68,6 +68,11 @@ class MultimodalCapabilities:
             image_out = out.get("image") or {}
             if image_out.get("supported"):
                 caps.output_modalities.add(Modality.IMAGE)
+            video_out = out.get("video") or {}
+            if video_out.get("supported"):
+                caps.output_modalities.add(Modality.VIDEO)
+                if not caps.video_formats:
+                    caps.video_formats = video_out.get("formats", [])
 
         omni = config.get("omni_mode", {})
         if omni:

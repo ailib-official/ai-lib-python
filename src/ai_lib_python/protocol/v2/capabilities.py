@@ -28,6 +28,9 @@ class Capability(str, Enum):
     STRUCTURED_OUTPUT = "structured_output"
     BATCH = "batch"
     IMAGE_GENERATION = "image_generation"
+    STT = "stt"
+    TTS = "tts"
+    RERANKING = "reranking"
     COMPUTER_USE = "computer_use"
     MCP_CLIENT = "mcp_client"
     MCP_SERVER = "mcp_server"
@@ -57,6 +60,9 @@ _CAP_TO_EXTRA: dict[Capability, str] = {
     Capability.VIDEO: "audio",  # shares the same extra
     Capability.EMBEDDINGS: "embeddings",
     Capability.BATCH: "batch",
+    Capability.STT: "stt",
+    Capability.TTS: "tts",
+    Capability.RERANKING: "reranking",
     Capability.COMPUTER_USE: "computer_use",
     Capability.MCP_CLIENT: "mcp",
     Capability.MCP_SERVER: "mcp",
@@ -77,6 +83,9 @@ _CAP_TO_MODULE: dict[Capability, str] = {
     Capability.STRUCTURED_OUTPUT: "structured",
     Capability.BATCH: "batch",
     Capability.IMAGE_GENERATION: "generation.image",
+    Capability.STT: "stt",
+    Capability.TTS: "tts",
+    Capability.RERANKING: "rerank",
     Capability.COMPUTER_USE: "computer_use",
     Capability.MCP_CLIENT: "mcp.client",
     Capability.MCP_SERVER: "mcp.server",

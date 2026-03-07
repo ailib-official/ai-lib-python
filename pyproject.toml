@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-lib-python"
-version = "0.7.5"
+version = "0.8.0"
 description = "Official Python Runtime for AI-Protocol - The canonical Pythonic implementation for unified AI model interaction"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
