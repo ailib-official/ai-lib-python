@@ -82,3 +82,45 @@ def test_supports_structured_endpoint_and_streaming_shapes() -> None:
     assert manifest.streaming is not None
     assert isinstance(manifest.streaming.decoder, dict)
     assert isinstance(manifest.streaming.event_map, list)
+
+
+def test_consume_wave1_v2_provider_manifests() -> None:
+    root = _resolve_ai_protocol_root()
+    providers = ("cohere", "moonshot", "zhipu", "jina")
+
+    for provider in providers:
+        path = root / "v2" / "providers" / f"{provider}.yaml"
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        manifest = ManifestV2.model_validate(raw)
+
+        assert manifest.is_v2, f"{provider} should parse as V2 manifest"
+        assert manifest.id == provider
+        assert manifest.endpoint is not None
+        assert manifest.base_url
+
+        endpoint = manifest.endpoint
+        chat_path = endpoint.chat
+        rerank_path = getattr(endpoint, "rerank", None)
+        if isinstance(chat_path, dict):
+            chat_path = chat_path.get("path")
+        if isinstance(rerank_path, dict):
+            rerank_path = rerank_path.get("path")
+
+        if provider == "cohere":
+            assert chat_path == "/chat"
+            assert rerank_path == "/rerank"
+        elif provider in {"moonshot", "zhipu"}:
+            assert chat_path == "/chat/completions"
+        elif provider == "jina":
+            assert chat_path in {None, "/v1/chat/completions"}
+            assert rerank_path == "/v1/rerank"
+
+        if provider == "moonshot":
+            assert manifest.multimodal is not None
+            caps = MultimodalCapabilities.from_config(
+                manifest.multimodal.model_dump(exclude_none=True)
+            )
+            assert caps.supports_input(Modality.VIDEO)
+            output = manifest.multimodal.output or {}
+            video_out = output.get("video") or {}
+            assert video_out.get("supported", False) is False

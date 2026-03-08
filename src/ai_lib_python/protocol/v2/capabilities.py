@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Capability(str, Enum):
@@ -158,6 +158,23 @@ class CapabilitiesV2(BaseModel):
     required: list[Capability] = Field(default_factory=lambda: [Capability.TEXT])
     optional: list[Capability] = Field(default_factory=list)
     feature_flags: FeatureFlags = Field(default_factory=FeatureFlags)
+
+    @field_validator("required", "optional", mode="before")
+    @classmethod
+    def _normalize_capability_aliases(cls, value: Any) -> Any:
+        """Normalize known legacy aliases before enum validation."""
+        if not isinstance(value, list):
+            return value
+        alias_map = {
+            "rerank": "reranking",
+        }
+        normalized: list[Any] = []
+        for item in value:
+            if isinstance(item, str):
+                normalized.append(alias_map.get(item, item))
+            else:
+                normalized.append(item)
+        return normalized
 
     # ---- query helpers -------------------------------------------------
 
