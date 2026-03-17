@@ -171,8 +171,8 @@ def _manifest_has_required_shape(manifest: dict[str, Any]) -> bool:
     return isinstance(base_url, str) and bool(base_url)
 
 
-def _ios_capability_profile_errors(manifest: dict[str, Any]) -> list[str]:
-    """Return IOS-phase capability_profile semantic errors."""
+def _capability_profile_phase_errors(manifest: dict[str, Any]) -> list[str]:
+    """Return staged capability_profile semantic errors for IOS/IOSPC phases."""
     cp = manifest.get("capability_profile")
     if cp is None:
         return []
@@ -186,6 +186,13 @@ def _ios_capability_profile_errors(manifest: dict[str, Any]) -> list[str]:
             errors.append("must NOT have additional properties")
         if not any(key in cp for key in ("inputs", "outcomes", "systems")):
             errors.append("must match at least one schema in anyOf")
+    elif phase == "iospc_v1":
+        if not any(key in cp for key in ("inputs", "outcomes", "systems")):
+            errors.append("iospc_v1 requires inputs or outcomes or systems")
+        if "process" not in cp and "contract" not in cp:
+            errors.append("iospc_v1 requires process or contract")
+    elif phase is not None:
+        errors.append("phase must be ios_v1 or iospc_v1")
     return errors
 
 
@@ -204,8 +211,8 @@ def run_protocol_loading(
     assert manifest is not None, f"[{case_id}] {case_name}: manifest not found at {manifest_path}"
 
     expected_valid = bool(expected.get("valid", False))
-    ios_errors = _ios_capability_profile_errors(manifest)
-    actual_valid = _manifest_has_required_shape(manifest) and not ios_errors
+    cp_errors = _capability_profile_phase_errors(manifest)
+    actual_valid = _manifest_has_required_shape(manifest) and not cp_errors
 
     assert actual_valid == expected_valid, (
         f"[{case_id}] {case_name}: valid expected {expected_valid}, got {actual_valid}"
@@ -218,7 +225,7 @@ def run_protocol_loading(
         else []
     )
     if expected_errors:
-        actual_error_text = " | ".join(ios_errors)
+        actual_error_text = " | ".join(cp_errors)
         for expected_error in expected_errors:
             assert expected_error in actual_error_text, (
                 f"[{case_id}] {case_name}: expected error '{expected_error}' not found in '{actual_error_text}'"
@@ -245,7 +252,7 @@ def run_protocol_loading(
         endpoint = manifest.get("endpoint")
         if not isinstance(endpoint, dict) or not endpoint.get("base_url"):
             missing_required.append("endpoint.base_url")
-        assert missing_required or ios_errors, (
+        assert missing_required or cp_errors, (
             f"[{case_id}] {case_name}: expected invalid manifest to fail required-shape or IOS checks"
         )
 
