@@ -171,6 +171,24 @@ def _manifest_has_required_shape(manifest: dict[str, Any]) -> bool:
     return isinstance(base_url, str) and bool(base_url)
 
 
+def _ios_capability_profile_errors(manifest: dict[str, Any]) -> list[str]:
+    """Return IOS-phase capability_profile semantic errors."""
+    cp = manifest.get("capability_profile")
+    if cp is None:
+        return []
+    if not isinstance(cp, dict):
+        return ["capability_profile must be object"]
+
+    errors: list[str] = []
+    phase = cp.get("phase")
+    if phase == "ios_v1":
+        if "process" in cp or "contract" in cp:
+            errors.append("must NOT have additional properties")
+        if not any(key in cp for key in ("inputs", "outcomes", "systems")):
+            errors.append("must match at least one schema in anyOf")
+    return errors
+
+
 def run_protocol_loading(
     input_data: dict[str, Any],
     expected: dict[str, Any],
@@ -186,11 +204,25 @@ def run_protocol_loading(
     assert manifest is not None, f"[{case_id}] {case_name}: manifest not found at {manifest_path}"
 
     expected_valid = bool(expected.get("valid", False))
-    actual_valid = _manifest_has_required_shape(manifest)
+    ios_errors = _ios_capability_profile_errors(manifest)
+    actual_valid = _manifest_has_required_shape(manifest) and not ios_errors
 
     assert actual_valid == expected_valid, (
         f"[{case_id}] {case_name}: valid expected {expected_valid}, got {actual_valid}"
     )
+
+    expected_errors_raw = expected.get("errors")
+    expected_errors = (
+        [str(item) for item in expected_errors_raw if isinstance(item, str)]
+        if isinstance(expected_errors_raw, list)
+        else []
+    )
+    if expected_errors:
+        actual_error_text = " | ".join(ios_errors)
+        for expected_error in expected_errors:
+            assert expected_error in actual_error_text, (
+                f"[{case_id}] {case_name}: expected error '{expected_error}' not found in '{actual_error_text}'"
+            )
 
     if expected_valid:
         if "provider_id" in expected:
@@ -213,8 +245,8 @@ def run_protocol_loading(
         endpoint = manifest.get("endpoint")
         if not isinstance(endpoint, dict) or not endpoint.get("base_url"):
             missing_required.append("endpoint.base_url")
-        assert missing_required, (
-            f"[{case_id}] {case_name}: expected invalid manifest to miss required fields"
+        assert missing_required or ios_errors, (
+            f"[{case_id}] {case_name}: expected invalid manifest to fail required-shape or IOS checks"
         )
 
 
