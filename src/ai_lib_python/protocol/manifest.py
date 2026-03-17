@@ -350,6 +350,9 @@ class ProtocolManifest(BaseModel):
     experimental_features: list[str] = Field(
         default_factory=list, description="Experimental features"
     )
+    capability_profile: dict[str, Any] | None = Field(
+        default=None, description="Structured capability profile (IOS/IOSPC phase)"
+    )
 
     def supports_streaming(self) -> bool:
         """Check if provider supports streaming."""

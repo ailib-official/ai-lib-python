@@ -111,6 +111,16 @@ class ProtocolLoader:
         if not base:
             return None
 
+        # Try dist/v2/providers first (pre-built JSON)
+        json_v2_path = base / "dist" / "v2" / "providers" / f"{provider_id}.json"
+        if json_v2_path.exists():
+            return json_v2_path
+
+        # Try v2/providers (YAML source)
+        yaml_v2_path = base / "v2" / "providers" / f"{provider_id}.yaml"
+        if yaml_v2_path.exists():
+            return yaml_v2_path
+
         # Try dist/v1/providers first (pre-built JSON)
         json_path = base / "dist" / "v1" / "providers" / f"{provider_id}.json"
         if json_path.exists():
@@ -232,17 +242,23 @@ class ProtocolLoader:
         if self._fallback_to_github:
             try:
                 data = await self._load_from_github(
-                    f"dist/v1/providers/{provider_id}.json"
+                    f"dist/v2/providers/{provider_id}.json"
                 )
-                manifest = ProtocolManifest.model_validate(data)
-                if self._cache_enabled:
-                    self._cache[cache_key] = manifest
-                return manifest
-            except Exception as e:
-                raise ProtocolError(
-                    f"Provider '{provider_id}' not found locally or on GitHub: {e}",
-                    protocol_path=provider_id,
-                ) from e
+            except Exception:
+                try:
+                    data = await self._load_from_github(
+                        f"dist/v1/providers/{provider_id}.json"
+                    )
+                except Exception as e:
+                    raise ProtocolError(
+                        f"Provider '{provider_id}' not found locally or on GitHub: {e}",
+                        protocol_path=provider_id,
+                    ) from e
+
+            manifest = ProtocolManifest.model_validate(data)
+            if self._cache_enabled:
+                self._cache[cache_key] = manifest
+            return manifest
 
         raise ProtocolError(
             f"Provider '{provider_id}' not found",
