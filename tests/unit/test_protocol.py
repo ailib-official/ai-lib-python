@@ -104,6 +104,23 @@ class TestProtocolManifest:
         manifest = ProtocolManifest.model_validate(data)
         assert manifest.id == "test"
 
+    def test_capability_profile_field_is_preserved(self) -> None:
+        """Test structured capability_profile can be parsed and preserved."""
+        data = {
+            "id": "test-provider",
+            "protocol_version": "2.0",
+            "endpoint": {"base_url": "https://api.example.com"},
+            "capability_profile": {
+                "phase": "ios_v1",
+                "inputs": {"modalities": ["text"]},
+                "outcomes": {"types": ["text_completion"]},
+                "systems": {"requires": ["search"]},
+            },
+        }
+        manifest = ProtocolManifest.model_validate(data)
+        assert manifest.capability_profile is not None
+        assert manifest.capability_profile["phase"] == "ios_v1"
+
 
 class TestDecoderConfig:
     """Tests for DecoderConfig model."""
@@ -231,3 +248,54 @@ class TestProtocolLoader:
         })
         loader.invalidate("provider:test")
         assert "provider:test" not in loader._cache
+
+    @pytest.mark.asyncio
+    async def test_load_provider_prefers_v2_when_both_exist(self, tmp_path: Path) -> None:
+        """Loader should resolve dist/v2 provider before dist/v1 for same id."""
+        v2_path = tmp_path / "dist" / "v2" / "providers" / "openai.json"
+        v1_path = tmp_path / "dist" / "v1" / "providers" / "openai.json"
+        v2_path.parent.mkdir(parents=True, exist_ok=True)
+        v1_path.parent.mkdir(parents=True, exist_ok=True)
+
+        v2_path.write_text(
+            json.dumps({
+                "id": "openai",
+                "protocol_version": "2.0",
+                "endpoint": {"base_url": "https://v2.example.com"},
+                "capability_profile": {"phase": "ios_v1", "inputs": {"modalities": ["text"]}},
+            }),
+            encoding="utf-8",
+        )
+        v1_path.write_text(
+            json.dumps({
+                "id": "openai",
+                "protocol_version": "1.5",
+                "endpoint": {"base_url": "https://v1.example.com"},
+            }),
+            encoding="utf-8",
+        )
+
+        loader = ProtocolLoader(base_path=tmp_path, fallback_to_github=False)
+        manifest = await loader.load_provider("openai")
+        assert manifest.protocol_version == "2.0"
+        assert manifest.endpoint.base_url == "https://v2.example.com"
+        assert manifest.capability_profile is not None
+
+    @pytest.mark.asyncio
+    async def test_load_provider_falls_back_to_v1_when_v2_missing(self, tmp_path: Path) -> None:
+        """Loader should fallback to dist/v1 when dist/v2 manifest is absent."""
+        v1_path = tmp_path / "dist" / "v1" / "providers" / "openai.json"
+        v1_path.parent.mkdir(parents=True, exist_ok=True)
+        v1_path.write_text(
+            json.dumps({
+                "id": "openai",
+                "protocol_version": "1.5",
+                "endpoint": {"base_url": "https://v1.example.com"},
+            }),
+            encoding="utf-8",
+        )
+
+        loader = ProtocolLoader(base_path=tmp_path, fallback_to_github=False)
+        manifest = await loader.load_provider("openai")
+        assert manifest.protocol_version == "1.5"
+        assert manifest.endpoint.base_url == "https://v1.example.com"
