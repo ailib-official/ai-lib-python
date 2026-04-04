@@ -1,0 +1,56 @@
+# PT-073 (Wave-5): Python E-only compliance subset + E/P static checks.
+# COMPLIANCE_SUBSET=e_only skips policy-heavy cases (e.g. cases/06-resilience).
+
+name: PT-073 Python (E-only)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  e_only:
+    name: E-only compliance + EP boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ai-lib-python
+
+    steps:
+      - name: Checkout ai-lib-python
+        uses: actions/checkout@v4
+        with:
+          path: ai-lib-python
+
+      - name: Checkout ai-protocol
+        uses: actions/checkout@v4
+        with:
+          repository: hiddenpath/ai-protocol
+          path: ai-protocol
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package (dev extras)
+        run: pip install -e ".[dev]"
+
+      - name: E/P boundary — Python (execution trees + client/ AST)
+        run: |
+          python "${{ github.workspace }}/ai-protocol/tests/compliance/ep-boundary/check_ep_boundary.py" \
+            --python-root "${{ github.workspace }}/ai-lib-python"
+
+      - name: Compliance tests (E-only subset)
+        env:
+          COMPLIANCE_DIR: ${{ github.workspace }}/ai-protocol/tests/compliance
+          COMPLIANCE_SUBSET: e_only
+        run: python -m pytest tests/compliance/ -q --tb=short
+
+      - name: Architecture — import boundary + CLI ep-check
+        env:
+          COMPLIANCE_DIR: ${{ github.workspace }}/ai-protocol/tests/compliance
+        run: python -m pytest tests/architecture/test_execution_layer_import_boundary.py -q --tb=short

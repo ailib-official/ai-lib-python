@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **GitHub Actions:** `.github/workflows/pt073-python-e-only.yml` — `COMPLIANCE_SUBSET=e_only` compliance run, `check_ep_boundary.py --python-root`, and architecture tests (checkout `hiddenpath/ai-protocol`).
 - Wave-5 optional extra `contact` (marker for policy-layer installs; included in `full`). Physical split of packages deferred; E-only usage: avoid importing routing/cache/batch/plugins/tokens/telemetry/guardrails/resilience modules.
 - Architecture test `test_check_ep_boundary_python_cli_ok` runs `../../ai-protocol/tests/compliance/ep-boundary/check_ep_boundary.py` when that path exists.
 
