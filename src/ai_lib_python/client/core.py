@@ -5,7 +5,7 @@ Core AiClient implementation.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ai_lib_python.client.builder import AiClientBuilder, ChatRequestBuilder
 from ai_lib_python.client.response import CallStats, ChatResponse
@@ -18,8 +18,16 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from ai_lib_python.protocol.manifest import ProtocolManifest
-    from ai_lib_python.resilience import ResilientConfig, ResilientExecutor
     from ai_lib_python.types.events import StreamingEvent
+
+# Contact-layer resilience is loaded only via importlib when users opt in (Paper1 §3.2).
+_RES_PKG = "ai_lib_python.resilience"
+
+
+def _load_resilience_module() -> Any:
+    import importlib
+
+    return importlib.import_module(_RES_PKG)
 
 
 class AiClient:
@@ -55,7 +63,7 @@ class AiClient:
         pipeline: Pipeline,
         model_id: str,
         fallbacks: list[str] | None = None,
-        executor: ResilientExecutor | None = None,
+        executor: Any | None = None,
         loader: ProtocolLoader | None = None,
         api_keys: dict[str, str] | None = None,
         base_url_override: str | None = None,
@@ -138,7 +146,7 @@ class AiClient:
         base_url_override: str | None = None,
         timeout: float | None = None,
         hot_reload: bool = False,
-        resilient_config: ResilientConfig | None = None,
+        resilient_config: Any | None = None,
         api_keys: dict[str, str] | None = None,
     ) -> AiClient:
         """Internal creation method.
@@ -179,11 +187,11 @@ class AiClient:
         # Create pipeline
         pipeline = Pipeline.from_manifest(manifest)
 
-        # Create executor if resilience is configured
+        # Create executor if resilience is configured (policy-layer module; dynamic import).
         executor = None
         if resilient_config is not None:
-            from ai_lib_python.resilience import ResilientExecutor
-
+            rm = _load_resilience_module()
+            ResilientExecutor = getattr(rm, "ResilientExecutor")
             executor = ResilientExecutor(resilient_config, name=f"{manifest.id}/{model_id}")
 
         return cls(
@@ -295,7 +303,10 @@ class AiClient:
 
                 # Use executor if available for resilience
                 if self._executor:
-                    return await self._executor.execute(do_request)
+                    return cast(
+                        ChatResponse,
+                        await self._executor.execute(do_request),
+                    )
                 return await do_request()
 
             except Exception as e:
@@ -479,14 +490,14 @@ class AiClient:
     def circuit_state(self) -> str:
         """Get current circuit breaker state."""
         if self._executor:
-            return self._executor.circuit_state
+            return cast(str, self._executor.circuit_state)
         return "disabled"
 
     @property
     def current_inflight(self) -> int:
         """Get current number of in-flight requests."""
         if self._executor:
-            return self._executor.current_inflight
+            return cast(int, self._executor.current_inflight)
         return 0
 
     def get_resilience_stats(self) -> dict[str, Any]:
@@ -496,7 +507,7 @@ class AiClient:
             Dict with resilience stats, or empty dict if not resilient
         """
         if self._executor:
-            return self._executor.get_stats()
+            return cast(dict[str, Any], self._executor.get_stats())
         return {}
 
     def reset_resilience(self) -> None:

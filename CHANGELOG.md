@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Wave-5 E/P boundary:** `client` no longer uses static `from ai_lib_python.resilience` imports; optional resilience is loaded via `importlib` when configured (aligns with Paper1 §3.2 and `check_ep_boundary.py` client/ AST scan).
+
+### Added
+
+- Wave-5 optional extra `contact` (marker for policy-layer installs; included in `full`). Physical split of packages deferred; E-only usage: avoid importing routing/cache/batch/plugins/tokens/telemetry/guardrails/resilience modules.
+- Architecture test `test_check_ep_boundary_python_cli_ok` runs `../../ai-protocol/tests/compliance/ep-boundary/check_ep_boundary.py` when that path exists.
+
 ## [0.8.1] - 2026-03-08
 
 ### Added

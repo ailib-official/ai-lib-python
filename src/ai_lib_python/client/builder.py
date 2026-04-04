@@ -6,17 +6,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+# Policy-layer resilience (contact) must not be statically imported here (PT-067 / Paper1 §3).
+_RES_PKG = "ai_lib_python.resilience"
+
+
+def _resilience_mod() -> Any:
+    import importlib
+
+    return importlib.import_module(_RES_PKG)
+
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from ai_lib_python.client.core import AiClient
     from ai_lib_python.client.response import CallStats, ChatResponse
-    from ai_lib_python.resilience import (
-        CircuitBreakerConfig,
-        RateLimiterConfig,
-        ResilientConfig,
-        RetryConfig,
-    )
     from ai_lib_python.types.events import StreamingEvent
     from ai_lib_python.types.message import Message
     from ai_lib_python.types.tool import ToolChoice, ToolDefinition
@@ -47,11 +51,11 @@ class AiClientBuilder:
         self._timeout: float | None = None
         self._hot_reload: bool = False
         self._max_inflight: int | None = None
-        # Resilience configuration
-        self._retry_config: RetryConfig | None = None
-        self._rate_limit_config: RateLimiterConfig | None = None
-        self._circuit_breaker_config: CircuitBreakerConfig | None = None
-        self._resilient_config: ResilientConfig | None = None
+        # Resilience configuration (types live in ai_lib_python.resilience; loaded at build time).
+        self._retry_config: Any | None = None
+        self._rate_limit_config: Any | None = None
+        self._circuit_breaker_config: Any | None = None
+        self._resilient_config: Any | None = None
         self._api_keys: dict[str, str] = {}
 
     def model(self, model_id: str) -> AiClientBuilder:
@@ -160,7 +164,8 @@ class AiClientBuilder:
         Returns:
             Self for chaining
         """
-        from ai_lib_python.resilience import RetryConfig
+        rm = _resilience_mod()
+        RetryConfig = getattr(rm, "RetryConfig")
 
         self._retry_config = RetryConfig(
             max_retries=max_attempts - 1,
@@ -181,7 +186,7 @@ class AiClientBuilder:
         self._api_keys[model_id] = key
         return self
 
-    def with_retry(self, config: RetryConfig) -> AiClientBuilder:
+    def with_retry(self, config: Any) -> AiClientBuilder:
         """Configure retry policy.
 
         Args:
@@ -193,7 +198,7 @@ class AiClientBuilder:
         self._retry_config = config
         return self
 
-    def with_rate_limit(self, config: RateLimiterConfig) -> AiClientBuilder:
+    def with_rate_limit(self, config: Any) -> AiClientBuilder:
         """Configure rate limiting.
 
         Args:
@@ -205,7 +210,7 @@ class AiClientBuilder:
         self._rate_limit_config = config
         return self
 
-    def with_circuit_breaker(self, config: CircuitBreakerConfig) -> AiClientBuilder:
+    def with_circuit_breaker(self, config: Any) -> AiClientBuilder:
         """Configure circuit breaker.
 
         Args:
@@ -217,7 +222,7 @@ class AiClientBuilder:
         self._circuit_breaker_config = config
         return self
 
-    def with_resilience(self, config: ResilientConfig) -> AiClientBuilder:
+    def with_resilience(self, config: Any) -> AiClientBuilder:
         """Configure all resilience patterns at once.
 
         Args:
@@ -235,7 +240,8 @@ class AiClientBuilder:
         Returns:
             Self for chaining
         """
-        from ai_lib_python.resilience import ResilientConfig
+        rm = _resilience_mod()
+        ResilientConfig = getattr(rm, "ResilientConfig")
 
         self._resilient_config = ResilientConfig.production()
         return self
@@ -264,7 +270,9 @@ class AiClientBuilder:
                 self._max_inflight,
             ]
         ):
-            from ai_lib_python.resilience import BackpressureConfig, ResilientConfig
+            rm = _resilience_mod()
+            BackpressureConfig = getattr(rm, "BackpressureConfig")
+            ResilientConfig = getattr(rm, "ResilientConfig")
 
             resilient_config = ResilientConfig(
                 retry=self._retry_config,
