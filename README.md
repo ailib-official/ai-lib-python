@@ -212,6 +212,20 @@ export AI_LIB_MAX_INFLIGHT=10
 export AI_LIB_RPS=5  # or AI_LIB_RPM=300
 ```
 
+### HTTP proxies (cross-runtime parity with ai-lib-rust)
+
+| Variable | Purpose |
+|----------|---------|
+| `AI_PROXY_URL` | Explicit proxy URL for outbound requests when `AI_HTTP_TRUST_ENV=1` (Python also honors httpx `trust_env` only in that mode). |
+| `HTTP_PROXY` / `HTTPS_PROXY` | Standard vars; in Rust they are merged with `AI_PROXY_URL` as candidate routes. In Python, enable via `AI_HTTP_TRUST_ENV=1` so local/mock traffic is not accidentally proxied. |
+| `NO_PROXY` / `AI_PROXY_NO_PROXY` | Comma-separated hosts that must bypass the proxy (include mock hostnames, API hostnames that must be direct, and `127.0.0.1`). Rust documents `AI_PROXY_NO_PROXY`; set the same where your stack reads it. |
+
+With a proxy: set `NO_PROXY` to include the mock server host (for example `NO_PROXY=192.168.2.13,localhost,127.0.0.1`).
+
+Or in code: `AiClient.create("openai/gpt-4o", base_url="http://localhost:4010")`.
+
+For shared semantics across runtimes, see [CROSS_RUNTIME.md](https://github.com/ailib-official/ai-protocol/blob/main/docs/CROSS_RUNTIME.md).
+
 ## 🧪 Testing
 
 ### Unit Tests
@@ -226,12 +240,27 @@ pytest tests/unit/ -v
 
 ### Compliance Tests (Cross-Runtime Consistency)
 
+Install test dependencies first (`pytest` is not a default runtime dependency):
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
 ```bash
 # Run compliance tests
-pytest tests/compliance/ -v
+python -m pytest tests/compliance/ -v
 
-# Specify compliance directory
-COMPLIANCE_DIR=../ai-protocol/tests/compliance pytest tests/compliance/ -v
+# Specify compliance directory (POSIX)
+COMPLIANCE_DIR=../ai-protocol/tests/compliance python -m pytest tests/compliance/ -v
+
+# Windows PowerShell
+$env:COMPLIANCE_DIR = "D:\ai-protocol\tests\compliance"
+python -m pytest tests/compliance/ -v
+
+# Wave-5 execution-layer-only subset (skips resilience-heavy cases)
+$env:COMPLIANCE_SUBSET = "e_only"   # PowerShell
+# COMPLIANCE_SUBSET=e_only python -m pytest tests/compliance/ -v   # POSIX
+python -m pytest tests/compliance/ -v
 ```
 
 ### Testing with Mock Server

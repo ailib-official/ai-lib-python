@@ -229,6 +229,12 @@ class ResponsePathsConfig(BaseModel):
     tool_calls: str | None = Field(default=None, description="Path to tool calls")
     usage: str | None = Field(default=None, description="Path to usage")
     finish_reason: str | None = Field(default=None, description="Path to finish reason")
+    reasoning_content: str | None = Field(
+        default=None, description="Path to reasoning / thinking text (non-streaming)"
+    )
+    reasoning: str | None = Field(
+        default=None, description="Alternate path for reasoning content"
+    )
 
 
 class ProtocolManifest(BaseModel):

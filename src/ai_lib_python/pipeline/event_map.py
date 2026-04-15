@@ -574,17 +574,26 @@ def create_event_mapper(
     if not streaming_config:
         return DefaultEventMapper()
 
-    # If explicit event_map rules are provided, use protocol mapper
+    strategy = None
+    if streaming_config.decoder:
+        strategy = streaming_config.decoder.strategy
+
+    # OpenAI-compatible SSE: path-based mapping is robust across v1/v2 manifests and
+    # avoids silent failures when event_map rules drift (extract vs fields, path vs boolean).
+    # Matches ai-lib-rust pipeline::Pipeline::from_manifest (prefer_path_mapper).
+    if strategy == "openai_chat":
+        return DefaultEventMapper(
+            content_path=streaming_config.content_path or "choices[0].delta.content",
+            tool_call_path=streaming_config.tool_call_path or "choices[0].delta.tool_calls",
+            usage_path=streaming_config.usage_path or "usage",
+        )
+
     if streaming_config.event_map:
         return ProtocolEventMapper(streaming_config.event_map)
 
-    # Check decoder strategy for provider-specific mappers
-    if streaming_config.decoder:
-        strategy = streaming_config.decoder.strategy
-        if strategy == "anthropic_event_stream":
-            return AnthropicEventMapper()
+    if strategy == "anthropic_event_stream":
+        return AnthropicEventMapper()
 
-    # Use default mapper with configured paths
     return DefaultEventMapper(
         content_path=streaming_config.content_path or "choices[0].delta.content",
         tool_call_path=streaming_config.tool_call_path or "choices[0].delta.tool_calls",

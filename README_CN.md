@@ -212,6 +212,20 @@ export AI_LIB_MAX_INFLIGHT=10
 export AI_LIB_RPS=5  # 或 AI_LIB_RPM=300
 ```
 
+### HTTP 代理（与 ai-lib-rust 跨运行时对齐）
+
+| 变量 | 作用 |
+|------|------|
+| `AI_PROXY_URL` | 显式代理 URL；仅在 `AI_HTTP_TRUST_ENV=1` 时生效（此时 httpx 才会按 `trust_env` 读取系统代理）。 |
+| `HTTP_PROXY` / `HTTPS_PROXY` | 标准环境变量；Rust 侧会与 `AI_PROXY_URL` 合并为候选路由。Python 侧需 `AI_HTTP_TRUST_ENV=1` 才会启用，避免本地/Mock 流量误走代理。 |
+| `NO_PROXY` / `AI_PROXY_NO_PROXY` | 逗号分隔、不走代理的主机列表（应包含 Mock 主机名、需直连的 API 主机及 `127.0.0.1`）。Rust 文档中的 `AI_PROXY_NO_PROXY` 与之对应。 |
+
+使用代理时：在 `NO_PROXY` 中包含 Mock 所在主机（例如 `NO_PROXY=192.168.2.13,localhost,127.0.0.1`）。
+
+或在代码中：`AiClient.create("openai/gpt-4o", base_url="http://localhost:4010")`。
+
+跨运行时统一语义见 [CROSS_RUNTIME.md](https://github.com/ailib-official/ai-protocol/blob/main/docs/CROSS_RUNTIME.md)。
+
 ## 🧪 测试
 
 ### 单元测试
@@ -226,12 +240,27 @@ pytest tests/unit/ -v
 
 ### 兼容性测试（跨运行时一致性）
 
+先安装测试依赖（`pytest` 不是默认运行时依赖）：
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
 ```bash
 # 运行兼容性测试
-pytest tests/compliance/ -v
+python -m pytest tests/compliance/ -v
 
-# 指定兼容性测试目录
-COMPLIANCE_DIR=../ai-protocol/tests/compliance pytest tests/compliance/ -v
+# 指定兼容性测试目录（POSIX）
+COMPLIANCE_DIR=../ai-protocol/tests/compliance python -m pytest tests/compliance/ -v
+
+# Windows PowerShell
+$env:COMPLIANCE_DIR = "D:\ai-protocol\tests\compliance"
+python -m pytest tests/compliance/ -v
+
+# Wave-5 仅执行层子集（跳过偏重弹性的用例）
+$env:COMPLIANCE_SUBSET = "e_only"   # PowerShell
+# COMPLIANCE_SUBSET=e_only python -m pytest tests/compliance/ -v   # POSIX
+python -m pytest tests/compliance/ -v
 ```
 
 ### 使用 Mock 服务器测试

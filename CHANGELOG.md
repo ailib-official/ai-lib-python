@@ -9,11 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Cross-runtime parity (Rust / `aitest-rust-debug-notes`):** Non-streaming `_parse_response` follows manifest `response_paths` first, then OpenAI Chat Completions defaults (including `choices[0].message.reasoning_content` when primary content is empty). Streaming: when `streaming.decoder.strategy` is `openai_chat`, use path-based `DefaultEventMapper` even if `streaming.event_map` is present (matches ai-lib-rust pipeline).
+- **Docs:** README proxy / `NO_PROXY` / `AI_HTTP_TRUST_ENV` table aligned with Rust transport semantics.
 - **Wave-5 E/P boundary:** `client` no longer uses static `from ai_lib_python.resilience` imports; optional resilience is loaded via `importlib` when configured (aligns with Paper1 §3.2 and `check_ep_boundary.py` client/ AST scan).
 
 ### Added
 
-- **GitHub Actions:** `.github/workflows/pt073-python-e-only.yml` — `COMPLIANCE_SUBSET=e_only` compliance run, `check_ep_boundary.py --python-root`, and architecture tests (checkout `hiddenpath/ai-protocol`).
+- **GitHub Actions:** `.github/workflows/pt073-python-e-only.yml` — `COMPLIANCE_SUBSET=e_only` compliance run, `check_ep_boundary.py --python-root`, and architecture tests (checkout `ailib-official/ai-protocol`).
+- **CI:** All workflow `repository:` references now use `ailib-official/ai-protocol` (GOV-001 v2: unified org).
 - Wave-5 optional extra `contact` (marker for policy-layer installs; included in `full`). Physical split of packages deferred; E-only usage: avoid importing routing/cache/batch/plugins/tokens/telemetry/guardrails/resilience modules.
 - Architecture test `test_check_ep_boundary_python_cli_ok` runs `../../ai-protocol/tests/compliance/ep-boundary/check_ep_boundary.py` when that path exists.
 

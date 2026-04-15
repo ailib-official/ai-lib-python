@@ -295,3 +295,14 @@ def create_selector(expression: str | None) -> Transform | None:
         return None
 
     return JsonPathSelector(expression)
+
+
+def get_value_at_path(frame: dict[str, Any], path: str) -> Any:
+    """Resolve a manifest-style path against a JSON object.
+
+    Supports ``$.choices[0].message.content`` and ``choices[0].message.content``.
+    Used for non-streaming :attr:`~ai_lib_python.protocol.manifest.ProtocolManifest.response_paths`
+    extraction aligned with ai-lib-rust ``PathMapper``.
+    """
+
+    return JsonPathSelector("exists($.choices)")._get_value(frame, path)

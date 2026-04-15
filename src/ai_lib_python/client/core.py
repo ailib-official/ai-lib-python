@@ -271,30 +271,17 @@ class AiClient:
                     p: Pipeline = pipeline,
                     mid: str = model,
                 ) -> ChatResponse:
-                    # Debug print for model being used
-                    print(f"DEBUG: Executing request for model: {mid}, manifest ID: {m.id}")
-
-                    # Update builder's client temporary context?
-                    # Actually builder.build_payload() uses self._client._model_id
-                    # This is tricky as builder is bound to the primary client.
-                    # We need to temporarily override the client context in the builder.
-
-                    # Create a temporary builder/payload
-                    # For simplicity, we'll just manually build the payload here or
-                    # temporarily swap self._model_id (hacky but it works for this pattern)
                     original_model_id = self._model_id
                     original_manifest = self._manifest
                     try:
                         self._model_id = mid
                         self._manifest = m
                         payload = builder.build_payload()
-                        print(f"DEBUG: Payload model: {payload.get('model')}")
                     finally:
                         self._model_id = original_model_id
                         self._manifest = original_manifest
 
                     endpoint = m.get_chat_endpoint()
-                    print(f"DEBUG: Endpoint: {endpoint}")
                     response = await t.post(endpoint, json=payload)
                     data = response.json()
 
@@ -413,26 +400,83 @@ class AiClient:
     def _parse_response(self, data: dict[str, Any]) -> ChatResponse:
         """Parse API response to ChatResponse.
 
+        Non-streaming extraction follows ai-lib-rust ``extract_nonstream_response``:
+        manifest ``response_paths`` first, then OpenAI Chat Completions fallbacks
+        (including reasoning fields when primary content is empty).
+
         Args:
             data: Raw API response
 
         Returns:
             Parsed ChatResponse
         """
+        from ai_lib_python.pipeline.select import get_value_at_path
+
         response = ChatResponse(raw_response=data)
+        manifest = self._manifest
+        rp = manifest.response_paths
 
-        # OpenAI-style response
+        def first_non_empty_str(paths: list[str | None]) -> str:
+            for raw in paths:
+                if not raw or not str(raw).strip():
+                    continue
+                v = get_value_at_path(data, raw)
+                if isinstance(v, str) and v.strip():
+                    return v
+            return ""
+
+        content_paths: list[str | None] = []
+        if rp and rp.content:
+            content_paths.append(rp.content)
+        content_paths.append("choices[0].message.content")
+        response.content = first_non_empty_str(content_paths)
+
+        if not response.content:
+            reasoning_paths: list[str | None] = []
+            if rp:
+                reasoning_paths.extend([rp.reasoning_content, rp.reasoning])
+            reasoning_paths.append("choices[0].message.reasoning_content")
+            response.content = first_non_empty_str(reasoning_paths)
+
+        response.usage = None
+        if rp and rp.usage:
+            u = get_value_at_path(data, rp.usage)
+            if isinstance(u, dict):
+                response.usage = u
+        if response.usage is None:
+            u = data.get("usage")
+            if isinstance(u, dict):
+                response.usage = u
+
         choices = data.get("choices", [])
-        if choices:
-            choice = choices[0]
-            message = choice.get("message", {})
+        if isinstance(choices, list) and choices:
+            choice = choices[0] if isinstance(choices[0], dict) else {}
+            message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
 
-            response.content = message.get("content", "") or ""
-            response.finish_reason = choice.get("finish_reason")
+            if not response.content:
+                c = message.get("content")
+                if isinstance(c, str) and c:
+                    response.content = c
 
-            # Parse tool calls
-            tool_calls_data = message.get("tool_calls", [])
-            for tc in tool_calls_data:
+            if rp and rp.finish_reason:
+                fr = get_value_at_path(data, rp.finish_reason)
+                if isinstance(fr, str):
+                    response.finish_reason = fr
+            if response.finish_reason is None:
+                response.finish_reason = choice.get("finish_reason")
+
+            tool_calls_raw: list[Any] | None = None
+            if rp and rp.tool_calls:
+                tc = get_value_at_path(data, rp.tool_calls)
+                if isinstance(tc, list):
+                    tool_calls_raw = tc
+            if tool_calls_raw is None:
+                tcm = message.get("tool_calls", [])
+                tool_calls_raw = tcm if isinstance(tcm, list) else []
+
+            for tc in tool_calls_raw:
+                if not isinstance(tc, dict):
+                    continue
                 response.tool_calls.append(
                     ToolCall.from_openai_format(
                         id=tc.get("id", ""),
@@ -441,11 +485,12 @@ class AiClient:
                     )
                 )
 
-        # Anthropic-style response
-        elif "content" in data:
-            content_blocks = data.get("content", [])
-            text_parts = []
+        elif isinstance(data.get("content"), list):
+            content_blocks = data["content"]
+            text_parts: list[str] = []
             for block in content_blocks:
+                if not isinstance(block, dict):
+                    continue
                 if block.get("type") == "text":
                     text_parts.append(block.get("text", ""))
                 elif block.get("type") == "tool_use":
@@ -457,11 +502,10 @@ class AiClient:
                         )
                     )
 
-            response.content = "".join(text_parts)
+            if not response.content:
+                response.content = "".join(text_parts)
             response.finish_reason = data.get("stop_reason")
 
-        # Usage
-        response.usage = data.get("usage")
         response.model = data.get("model")
 
         return response
