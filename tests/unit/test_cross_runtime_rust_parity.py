@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from ai_lib_python.client.core import AiClient
 from ai_lib_python.client.response import ChatResponse
-from ai_lib_python.pipeline.event_map import DefaultEventMapper, ProtocolEventMapper, create_event_mapper
+from ai_lib_python.pipeline.event_map import (
+    DefaultEventMapper,
+    ProtocolEventMapper,
+    create_event_mapper,
+)
 from ai_lib_python.protocol.manifest import (
     DecoderConfig,
-    EndpointConfig,
     EventMapRule,
     ProtocolManifest,
     StreamingConfig,

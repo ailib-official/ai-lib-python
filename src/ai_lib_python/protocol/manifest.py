@@ -254,9 +254,7 @@ class ResponsePathsConfig(BaseModel):
     reasoning_content: str | None = Field(
         default=None, description="Path to reasoning / thinking text (non-streaming)"
     )
-    reasoning: str | None = Field(
-        default=None, description="Alternate path for reasoning content"
-    )
+    reasoning: str | None = Field(default=None, description="Alternate path for reasoning content")
 
 
 class ProtocolManifest(BaseModel):

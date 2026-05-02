@@ -25,17 +25,29 @@ def _module_matrix_path() -> Path:
     # Match tests/compliance/conftest.py: two levels up from package root, then ai-protocol/
     root = _repo_root()
     return (
-        (root / ".." / ".." / "ai-protocol" / "tests" / "compliance" / "ep-boundary" / "module-matrix.yaml")
-        .resolve()
-    )
+        root
+        / ".."
+        / ".."
+        / "ai-protocol"
+        / "tests"
+        / "compliance"
+        / "ep-boundary"
+        / "module-matrix.yaml"
+    ).resolve()
 
 
 def _check_ep_boundary_script() -> Path:
     root = _repo_root()
     return (
-        (root / ".." / ".." / "ai-protocol" / "tests" / "compliance" / "ep-boundary" / "check_ep_boundary.py")
-        .resolve()
-    )
+        root
+        / ".."
+        / ".."
+        / "ai-protocol"
+        / "tests"
+        / "compliance"
+        / "ep-boundary"
+        / "check_ep_boundary.py"
+    ).resolve()
 
 
 def _compile_contact_import_patterns(contact: list[str]) -> list[tuple[re.Pattern[str], str]]:

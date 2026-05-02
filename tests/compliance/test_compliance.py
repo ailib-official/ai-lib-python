@@ -181,7 +181,11 @@ def run_credential_resolution(
     )
 
     actual_source_name = resolved.source_name
-    if runtime_target.startswith("wasm") and explicit_value and expected.get("source_name") == "host_supplied":
+    if (
+        runtime_target.startswith("wasm")
+        and explicit_value
+        and expected.get("source_name") == "host_supplied"
+    ):
         actual_source_name = "host_supplied"
     assert actual_source_name == expected.get("source_name"), (
         f"[{case_id}] {case_name}: source_name expected {expected.get('source_name')}, "

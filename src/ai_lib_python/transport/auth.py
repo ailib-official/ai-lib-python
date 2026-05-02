@@ -32,9 +32,7 @@ class ResolvedCredential:
     conventional_envs: list[str] = field(default_factory=list)
 
     @classmethod
-    def missing(
-        cls, required_envs: list[str], conventional_envs: list[str]
-    ) -> ResolvedCredential:
+    def missing(cls, required_envs: list[str], conventional_envs: list[str]) -> ResolvedCredential:
         """Return a missing credential with actionable diagnostic env names."""
         return cls(
             secret=None,
@@ -255,7 +253,9 @@ def build_auth_metadata(
     return {header: value}, {}
 
 
-def diagnostic_text(credential: ResolvedCredential, manifest: ProtocolManifest | None = None) -> str:
+def diagnostic_text(
+    credential: ResolvedCredential, manifest: ProtocolManifest | None = None
+) -> str:
     """Return secret-safe diagnostic text for missing or shadowed credentials."""
     parts: list[str] = []
     if credential.required_envs:
