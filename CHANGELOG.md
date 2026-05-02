@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **PT-074 credential chain parity:** transport auth now resolves credentials through explicit overrides, `endpoint.auth` / top-level `auth` env declarations, conventional `<PROVIDER_ID>_API_KEY` fallback, optional keyring support, and shared credential-chain compliance fixtures.
 - **Cross-runtime parity (Rust / `aitest-rust-debug-notes`):** Non-streaming `_parse_response` follows manifest `response_paths` first, then OpenAI Chat Completions defaults (including `choices[0].message.reasoning_content` when primary content is empty). Streaming: when `streaming.decoder.strategy` is `openai_chat`, use path-based `DefaultEventMapper` even if `streaming.event_map` is present (matches ai-lib-rust pipeline).
 - **Docs:** README proxy / `NO_PROXY` / `AI_HTTP_TRUST_ENV` table aligned with Rust transport semantics.
 - **Wave-5 E/P boundary:** `client` no longer uses static `from ai_lib_python.resilience` imports; optional resilience is loaded via `importlib` when configured (aligns with Paper1 §3.2 and `check_ep_boundary.py` client/ AST scan).
