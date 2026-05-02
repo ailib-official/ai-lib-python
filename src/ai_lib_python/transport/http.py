@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from ai_lib_python.errors import RemoteError, TransportError
-from ai_lib_python.transport.auth import get_auth_header
+from ai_lib_python.transport.auth import build_auth_metadata, resolve_credential
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -121,8 +121,12 @@ class HttpTransport:
             proxy_value = None
         self._proxy = proxy_value
 
-        # Build auth headers
-        self._auth_headers = get_auth_header(manifest.id, manifest, self._api_key)
+        # Resolve credential once per transport and build auth metadata from the
+        # active auth block (endpoint.auth wins; top-level auth is V1 fallback).
+        self._credential = resolve_credential(manifest.id, manifest, self._api_key)
+        self._auth_headers, self._auth_query_params = build_auth_metadata(
+            manifest, self._credential
+        )
 
         # Client instance (lazy initialization)
         self._client: httpx.AsyncClient | None = None
@@ -202,6 +206,9 @@ class HttpTransport:
         """
         client = self._get_client()
         request_headers = self._build_headers(headers)
+        request_params = dict(self._auth_query_params)
+        if params:
+            request_params.update(params)
 
         try:
             response = await client.request(
@@ -209,7 +216,7 @@ class HttpTransport:
                 url=path,
                 json=json,
                 headers=request_headers,
-                params=params,
+                params=request_params or None,
             )
         except httpx.ConnectError as e:
             raise TransportError(
@@ -314,6 +321,7 @@ class HttpTransport:
         """
         client = self._get_client()
         request_headers = self._build_headers(headers)
+        request_params = dict(self._auth_query_params)
 
         # For streaming, we need text/event-stream accept header
         request_headers["Accept"] = "text/event-stream"
@@ -324,6 +332,7 @@ class HttpTransport:
                 url=path,
                 json=json,
                 headers=request_headers,
+                params=request_params or None,
             ) as response:
                 # Check for error responses
                 if response.status_code >= 400:

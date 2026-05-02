@@ -7,7 +7,9 @@ compliance suite, ensuring cross-runtime behavioral consistency.
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -105,8 +107,146 @@ def test_compliance(case: dict[str, Any]) -> None:
         run_fallback_decision(input_data, expected, case)
     elif test_type == "provider_mock_behavior":
         run_provider_mock_behavior(input_data, expected, case)
+    elif test_type == "credential_resolution":
+        run_credential_resolution(input_data, expected, case)
+    elif test_type == "auth_attachment":
+        run_auth_attachment(input_data, expected, case)
     else:
         pytest.skip(f"Test type '{test_type}' not yet implemented")
+
+
+def _manifest_for_case(case: dict[str, Any]) -> Any:
+    from ai_lib_python.protocol.manifest import ProtocolManifest
+
+    setup = case.get("setup") if isinstance(case.get("setup"), dict) else {}
+    manifest_path = setup.get("manifest_path")
+    if not isinstance(manifest_path, str):
+        pytest.fail(f"[{case.get('id', 'unknown')}] manifest_path required")
+    raw = _load_provider_manifest(COMPLIANCE_DIR, manifest_path)
+    assert raw is not None, f"manifest not found: {manifest_path}"
+    return ProtocolManifest.model_validate(raw)
+
+
+def _credential_env_patch(case: dict[str, Any], expected: dict[str, Any]) -> dict[str, str]:
+    setup = case.get("setup") if isinstance(case.get("setup"), dict) else {}
+    env = dict(setup.get("env") or {})
+    candidates = set(env)
+    for key in expected.get("required") or []:
+        if isinstance(key, str):
+            candidates.add(key)
+    for key in expected.get("conventional_fallbacks") or []:
+        if isinstance(key, str):
+            candidates.add(key)
+    for key in expected.get("shadowed_envs_must_not_resolve") or []:
+        if isinstance(key, str):
+            candidates.add(key)
+    # Remove candidate credential env vars not explicitly provided by the case so
+    # a developer's shell cannot make a missing-credential compliance case pass.
+    return {key: env.get(key, "") for key in candidates}
+
+
+def run_credential_resolution(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run PT-074 credential_resolution cases."""
+    from ai_lib_python.transport.auth import diagnostic_text, resolve_credential
+
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
+    manifest = _manifest_for_case(case)
+    provider = str(input_data.get("provider") or manifest.id)
+    explicit = input_data.get("explicit_credential")
+    explicit_value = explicit if isinstance(explicit, str) else None
+    runtime_target = str(input_data.get("runtime_target", ""))
+    allow_keyring = not runtime_target.startswith("wasm")
+
+    env_patch = _credential_env_patch(case, expected)
+    with patch.dict(os.environ, env_patch, clear=False):
+        for key, value in env_patch.items():
+            if value == "":
+                os.environ.pop(key, None)
+        resolved = resolve_credential(
+            provider, manifest, explicit_value, allow_keyring=allow_keyring
+        )
+
+    status = "available" if resolved.secret else "missing"
+    assert status == expected.get("status"), (
+        f"[{case_id}] {case_name}: status expected {expected.get('status')}, got {status}"
+    )
+    assert resolved.source_kind.value == expected.get("source_kind"), (
+        f"[{case_id}] {case_name}: source_kind expected {expected.get('source_kind')}, "
+        f"got {resolved.source_kind.value}"
+    )
+
+    actual_source_name = resolved.source_name
+    if runtime_target.startswith("wasm") and explicit_value and expected.get("source_name") == "host_supplied":
+        actual_source_name = "host_supplied"
+    assert actual_source_name == expected.get("source_name"), (
+        f"[{case_id}] {case_name}: source_name expected {expected.get('source_name')}, "
+        f"got {actual_source_name}"
+    )
+
+    if "required" in expected:
+        assert resolved.required_envs == expected["required"], (
+            f"[{case_id}] {case_name}: required expected {expected['required']}, "
+            f"got {resolved.required_envs}"
+        )
+    if "conventional_fallbacks" in expected:
+        assert resolved.conventional_envs == expected["conventional_fallbacks"], (
+            f"[{case_id}] {case_name}: conventional_fallbacks expected "
+            f"{expected['conventional_fallbacks']}, got {resolved.conventional_envs}"
+        )
+    for shadowed_env in expected.get("shadowed_envs_must_not_resolve") or []:
+        assert resolved.source_name != shadowed_env, (
+            f"[{case_id}] {case_name}: shadowed env unexpectedly resolved: {shadowed_env}"
+        )
+
+    diagnostic = f"{resolved!r} {diagnostic_text(resolved, manifest)}"
+    for text in expected.get("diagnostic_contains") or []:
+        assert text in diagnostic, f"[{case_id}] {case_name}: diagnostic missing {text}"
+    for text in expected.get("diagnostic_should_mention") or []:
+        assert text in diagnostic, f"[{case_id}] {case_name}: diagnostic missing {text}"
+    for text in (expected.get("must_not_contain") or []) + (
+        expected.get("diagnostic_must_not_contain") or []
+    ):
+        assert text not in diagnostic, f"[{case_id}] {case_name}: diagnostic leaked {text}"
+
+
+def run_auth_attachment(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run PT-074 auth_attachment cases without network I/O."""
+    from ai_lib_python.transport.auth import build_auth_metadata, resolve_credential
+
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
+    manifest = _manifest_for_case(case)
+    provider = str(input_data.get("provider") or manifest.id)
+
+    env_patch = _credential_env_patch(case, expected)
+    with patch.dict(os.environ, env_patch, clear=False):
+        for key, value in env_patch.items():
+            if value == "":
+                os.environ.pop(key, None)
+        resolved = resolve_credential(provider, manifest, allow_keyring=False)
+        headers, query_params = build_auth_metadata(manifest, resolved, redacted=True)
+
+    assert headers == (expected.get("headers") or {}), (
+        f"[{case_id}] {case_name}: headers expected {expected.get('headers')}, got {headers}"
+    )
+    assert query_params == (expected.get("query_params") or {}), (
+        f"[{case_id}] {case_name}: query_params expected {expected.get('query_params')}, "
+        f"got {query_params}"
+    )
+    assert resolved.source_kind.value == expected.get("source_kind")
+    assert resolved.source_name == expected.get("source_name")
+    diagnostic = f"{headers!r} {query_params!r} {resolved!r}"
+    for text in expected.get("must_not_contain") or []:
+        assert text not in diagnostic, f"[{case_id}] {case_name}: attachment leaked {text}"
 
 
 def run_error_classification(

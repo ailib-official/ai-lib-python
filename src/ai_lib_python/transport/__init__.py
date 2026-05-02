@@ -9,7 +9,13 @@ Provides httpx-based transport with:
 - Connection pooling
 """
 
-from ai_lib_python.transport.auth import resolve_api_key
+from ai_lib_python.transport.auth import (
+    CredentialSourceKind,
+    ResolvedCredential,
+    build_auth_metadata,
+    resolve_api_key,
+    resolve_credential,
+)
 from ai_lib_python.transport.http import HttpTransport
 from ai_lib_python.transport.pool import (
     ConnectionPool,
@@ -23,12 +29,16 @@ from ai_lib_python.transport.pool import (
 
 __all__ = [
     "ConnectionPool",
+    "CredentialSourceKind",
     "HttpTransport",
     "PoolConfig",
     "PoolStats",
     "PooledTransport",
+    "ResolvedCredential",
+    "build_auth_metadata",
     "close_global_pool",
     "get_connection_pool",
     "resolve_api_key",
+    "resolve_credential",
     "set_connection_pool",
 ]
