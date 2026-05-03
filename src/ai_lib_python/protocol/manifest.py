@@ -9,17 +9,25 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 class AuthConfig(BaseModel):
     """Authentication configuration."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     type: str = Field(default="bearer", description="Auth type: bearer, api_key, etc.")
     token_env: str | None = Field(default=None, description="Environment variable for API key")
-    header_name: str | None = Field(default=None, description="Custom header name for API key")
+    key_env: str | None = Field(default=None, description="Environment variable for API key")
+    param_name: str | None = Field(default=None, description="Query parameter name for API key")
+    header_name: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("header", "header_name"),
+        serialization_alias="header",
+        description="Custom header name for API key",
+    )
+    prefix: str | None = Field(default=None, description="Authorization header prefix")
 
 
 class EndpointConfig(BaseModel):
@@ -30,6 +38,7 @@ class EndpointConfig(BaseModel):
     base_url: str = Field(description="Base URL for API requests")
     protocol: str = Field(default="https", description="Protocol: https, http, ws, wss")
     timeout_ms: int = Field(default=10000, description="Default timeout in milliseconds")
+    auth: AuthConfig | None = Field(default=None, description="Endpoint-scoped auth config")
 
 
 class HealthCheckConfig(BaseModel):
@@ -68,6 +77,19 @@ class CapabilitiesConfig(BaseModel):
     agentic: bool = Field(default=False, description="Supports agentic reasoning")
     reasoning: bool = Field(default=False, description="Supports thinking/reasoning blocks")
     parallel_tools: bool = Field(default=False, description="Supports parallel tool calls")
+
+    @classmethod
+    def from_tags(cls, tags: list[Any]) -> CapabilitiesConfig:
+        """Build capabilities from shorthand tag lists used by compliance fixtures."""
+        names = {str(tag) for tag in tags}
+        return cls(
+            streaming="streaming" in names,
+            tools="tools" in names,
+            vision="vision" in names,
+            agentic="agentic" in names,
+            reasoning="reasoning" in names,
+            parallel_tools="parallel_tools" in names,
+        )
 
 
 class DecoderConfig(BaseModel):
@@ -232,9 +254,7 @@ class ResponsePathsConfig(BaseModel):
     reasoning_content: str | None = Field(
         default=None, description="Path to reasoning / thinking text (non-streaming)"
     )
-    reasoning: str | None = Field(
-        default=None, description="Alternate path for reasoning content"
-    )
+    reasoning: str | None = Field(default=None, description="Alternate path for reasoning content")
 
 
 class ProtocolManifest(BaseModel):
@@ -321,6 +341,25 @@ class ProtocolManifest(BaseModel):
     capability_profile: dict[str, Any] | None = Field(
         default=None, description="Structured capability profile (IOS/IOSPC phase)"
     )
+
+    @field_validator("api_families", mode="before")
+    @classmethod
+    def _coerce_api_families(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return list(value.keys())
+        return value
+
+    @field_validator("capabilities", mode="before")
+    @classmethod
+    def _coerce_capabilities(cls, value: Any) -> Any:
+        if isinstance(value, list):
+            return CapabilitiesConfig.from_tags(value)
+        if isinstance(value, dict) and (
+            isinstance(value.get("required"), list) or isinstance(value.get("optional"), list)
+        ):
+            tags = [*(value.get("required") or []), *(value.get("optional") or [])]
+            return CapabilitiesConfig.from_tags(tags)
+        return value
 
     def supports_streaming(self) -> bool:
         """Check if provider supports streaming."""

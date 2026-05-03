@@ -165,7 +165,7 @@ class AiClientBuilder:
             Self for chaining
         """
         rm = _resilience_mod()
-        RetryConfig = getattr(rm, "RetryConfig")
+        RetryConfig = rm.RetryConfig
 
         self._retry_config = RetryConfig(
             max_retries=max_attempts - 1,
@@ -241,7 +241,7 @@ class AiClientBuilder:
             Self for chaining
         """
         rm = _resilience_mod()
-        ResilientConfig = getattr(rm, "ResilientConfig")
+        ResilientConfig = rm.ResilientConfig
 
         self._resilient_config = ResilientConfig.production()
         return self
@@ -271,8 +271,8 @@ class AiClientBuilder:
             ]
         ):
             rm = _resilience_mod()
-            BackpressureConfig = getattr(rm, "BackpressureConfig")
-            ResilientConfig = getattr(rm, "ResilientConfig")
+            BackpressureConfig = rm.BackpressureConfig
+            ResilientConfig = rm.ResilientConfig
 
             resilient_config = ResilientConfig(
                 retry=self._retry_config,

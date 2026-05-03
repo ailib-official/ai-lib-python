@@ -191,7 +191,7 @@ class AiClient:
         executor = None
         if resilient_config is not None:
             rm = _load_resilience_module()
-            ResilientExecutor = getattr(rm, "ResilientExecutor")
+            ResilientExecutor = rm.ResilientExecutor
             executor = ResilientExecutor(resilient_config, name=f"{manifest.id}/{model_id}")
 
         return cls(
@@ -291,7 +291,7 @@ class AiClient:
                 # Use executor if available for resilience
                 if self._executor:
                     return cast(
-                        ChatResponse,
+                        "ChatResponse",
                         await self._executor.execute(do_request),
                     )
                 return await do_request()
@@ -451,7 +451,8 @@ class AiClient:
         choices = data.get("choices", [])
         if isinstance(choices, list) and choices:
             choice = choices[0] if isinstance(choices[0], dict) else {}
-            message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
+            raw_message = choice.get("message")
+            message: dict[str, Any] = raw_message if isinstance(raw_message, dict) else {}
 
             if not response.content:
                 c = message.get("content")
@@ -534,14 +535,14 @@ class AiClient:
     def circuit_state(self) -> str:
         """Get current circuit breaker state."""
         if self._executor:
-            return cast(str, self._executor.circuit_state)
+            return cast("str", self._executor.circuit_state)
         return "disabled"
 
     @property
     def current_inflight(self) -> int:
         """Get current number of in-flight requests."""
         if self._executor:
-            return cast(int, self._executor.current_inflight)
+            return cast("int", self._executor.current_inflight)
         return 0
 
     def get_resilience_stats(self) -> dict[str, Any]:
@@ -551,7 +552,7 @@ class AiClient:
             Dict with resilience stats, or empty dict if not resilient
         """
         if self._executor:
-            return cast(dict[str, Any], self._executor.get_stats())
+            return cast("dict[str, Any]", self._executor.get_stats())
         return {}
 
     def reset_resilience(self) -> None:

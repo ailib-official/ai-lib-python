@@ -74,6 +74,17 @@ pip install ai-lib-python
 pip install ai-lib-python[full]
 ```
 
+### BYOK Credential Chain
+
+ai-lib-python resolves provider credentials through the unified PT-074 chain:
+
+1. explicit application override;
+2. manifest-declared env from `endpoint.auth` or V1 top-level `auth`;
+3. conventional `<PROVIDER_ID>_API_KEY`;
+4. optional platform keyring support when installed and enabled.
+
+Auth attachment follows the active manifest auth shape (`bearer`, custom header, or query parameter). Diagnostics expose only source metadata and env var names, never raw key values.
+
 ### Capability Extras
 
 **Execution Layer Capabilities**:
