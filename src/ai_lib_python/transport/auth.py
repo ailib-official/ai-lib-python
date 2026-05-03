@@ -183,7 +183,7 @@ def _try_keyring(provider_id: str) -> str | None:
         API key from keyring or None
     """
     try:
-        import keyring
+        import keyring  # type: ignore[import-not-found, unused-ignore]
 
         # Try with service name "ai-protocol"
         key = keyring.get_password("ai-protocol", provider_id)
