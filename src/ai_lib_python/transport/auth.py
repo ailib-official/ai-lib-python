@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ai_lib_python.protocol.manifest import AuthConfig, ProtocolManifest
+
+_keyring: Any | None = None
+try:
+    _keyring = importlib.import_module("keyring")
+except ImportError:
+    pass
 
 
 class CredentialSourceKind(str, Enum):
@@ -182,22 +189,20 @@ def _try_keyring(provider_id: str) -> str | None:
     Returns:
         API key from keyring or None
     """
-    try:
-        import keyring  # type: ignore[import-not-found, unused-ignore]
+    if _keyring is None:
+        return None
 
+    try:
         # Try with service name "ai-protocol"
-        key = keyring.get_password("ai-protocol", provider_id)
+        key = _keyring.get_password("ai-protocol", provider_id)
         if isinstance(key, str) and key:
             return key
 
         # Try with service name "ai-lib"
-        key = keyring.get_password("ai-lib", provider_id)
+        key = _keyring.get_password("ai-lib", provider_id)
         if isinstance(key, str) and key:
             return key
 
-    except ImportError:
-        # keyring not installed
-        pass
     except Exception:
         # Keyring error (common in containers, WSL, etc.)
         pass

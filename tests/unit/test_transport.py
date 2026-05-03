@@ -3,6 +3,7 @@
 import os
 from unittest.mock import patch
 
+import ai_lib_python.transport.auth as auth_module
 from ai_lib_python.protocol.manifest import AuthConfig, EndpointConfig, ProtocolManifest
 from ai_lib_python.transport.auth import (
     build_auth_metadata,
@@ -84,6 +85,13 @@ class TestResolveApiKey:
         with patch.dict(os.environ, {}, clear=True):
             key = resolve_api_key("nonexistent")
             assert key is None
+
+    def test_missing_keyring_package_degrades(self) -> None:
+        """Test optional keyring import degrades without failing credential resolution."""
+        with patch.object(auth_module, "_keyring", None), patch.dict(os.environ, {}, clear=True):
+            resolved = resolve_credential("openai", allow_keyring=True)
+        assert resolved.secret is None
+        assert resolved.source_kind.value == "none"
 
 
 class TestGetAuthHeader:
