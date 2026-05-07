@@ -1,0 +1,80 @@
+# PyPI + GitHub Release after CI succeeds on a version tag.
+#
+# PyPI Trusted Publishing (OIDC): register THIS file on PyPI:
+#   PyPI → ai-lib-python → Publishing → Add Trusted Publisher → GitHub
+#   Owner: ailib-official, Repository: ai-lib-python, Workflow: release.yml
+#   (Filename must be `release.yml`. Leave Environment empty unless you configure one below.)
+#
+# Flow: push tag v* → workflow "CI" runs (build uploads dist artifact) → this workflow runs on
+# workflow_run(completed) → we confirm HEAD is exactly a semver tag → download dist → PyPI + GH Release.
+
+name: Publish (PyPI)
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+  id-token: write
+
+jobs:
+  verify-tag:
+    name: Verify release tag
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+      head_sha: ${{ github.event.workflow_run.head_sha }}
+      run_id: ${{ github.event.workflow_run.id }}
+    steps:
+      - name: Check out at CI head commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - id: check
+        name: Exact semver tag only
+        run: |
+          tag=$(git describe --tags --exact-match 2>/dev/null || true)
+          if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "Detected release tag: $tag"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "Not an exact semver tag on this commit (got: '${tag:-none}'). Skipping publish."
+          fi
+
+  pypi-and-github-release:
+    name: Publish to PyPI and create GitHub Release
+    needs: verify-tag
+    if: needs.verify-tag.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository at release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-tag.outputs.head_sha }}
+
+      - name: Download CI build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+          run-id: ${{ needs.verify-tag.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+          attestations: false
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

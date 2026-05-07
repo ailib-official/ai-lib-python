@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-05-07
+
+### Changed
+
+- **Packaging / CI:** PyPI Trusted Publishing runs from `.github/workflows/release.yml` after `CI` completes successfully on a **version tag** (download `dist` from the CI run). Register PyPI Trusted Publisher with workflow file **`release.yml`** (owner `ailib-official`, repo `ai-lib-python`).
+
 ## [0.8.4] - 2026-05-07
 
 ### Changed
