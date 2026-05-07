@@ -1,3 +1,9 @@
+# CI on branches; full matrix also runs on version tags v* before PyPI + GitHub Release.
+#
+# PyPI publish uses Trusted Publishing (OIDC): enable in PyPI → Your project → Publishing →
+# Add Trusted Publisher → GitHub (owner: ailib-official, repo: ai-lib-python, workflow: ci.yml, workflow name: CI).
+# Release job permissions: id-token: write (OIDC), contents: write (GitHub Release).
+# Optional legacy fallback: set repo secret PYPI_API_TOKEN (never paste tokens in chat or commits).
 name: CI
 
 on:
@@ -229,7 +235,7 @@ jobs:
           skip-existing: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
