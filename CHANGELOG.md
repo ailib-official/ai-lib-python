@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-05-07
+
 ### Changed
 
 - **PT-074 credential chain parity:** transport auth now resolves credentials through explicit overrides, `endpoint.auth` / top-level `auth` env declarations, conventional `<PROVIDER_ID>_API_KEY` fallback, optional keyring support, and shared credential-chain compliance fixtures.
@@ -18,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **GitHub Actions:** `.github/workflows/pt073-python-e-only.yml` — `COMPLIANCE_SUBSET=e_only` compliance run, `check_ep_boundary.py --python-root`, and architecture tests (checkout `ailib-official/ai-protocol`).
 - **CI:** All workflow `repository:` references now use `ailib-official/ai-protocol` (GOV-001 v2: unified org).
+- **Release:** PyPI publishes via **Trusted Publishing (OIDC)** under the **ailib-official** org; tag `v*` runs full CI → `build` → `release` (PyPI + GitHub Release).
 - Wave-5 optional extra `contact` (marker for policy-layer installs; included in `full`). Physical split of packages deferred; E-only usage: avoid importing routing/cache/batch/plugins/tokens/telemetry/guardrails/resilience modules.
 - Architecture test `test_check_ep_boundary_python_cli_ok` runs `../../ai-protocol/tests/compliance/ep-boundary/check_ep_boundary.py` when that path exists.
 
