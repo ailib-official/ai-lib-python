@@ -1,9 +1,20 @@
 # PyPI + GitHub Release after CI succeeds on a version tag.
 #
-# PyPI Trusted Publishing (OIDC): register THIS file on PyPI:
+# PyPI Trusted Publishing (OIDC): register THIS workflow file on PyPI (Warehouse matches these exactly):
 #   PyPI → ai-lib-python → Publishing → Add Trusted Publisher → GitHub
-#   Owner: ailib-official, Repository: ai-lib-python, Workflow: release.yml
-#   (Filename must be `release.yml`. Leave Environment empty unless you configure one below.)
+#   - Owner (name): ailib-official
+#   - Repository: ai-lib-python  (hyphen; not ai_lib_python)
+#   - Workflow filename: release.yml  (the file name under .github/workflows/, not the workflow `name:`)
+#   - Owner id (numeric): 268981910  (must match GitHub repo owner id; verify with:
+#       gh api repos/ailib-official/ai-lib-python --jq .owner.id )
+#   - Environment on PyPI: leave empty unless you add `environment: ...` to job
+#     `pypi-and-github-release` and use the same name in PyPI.
+#
+# Troubleshooting `invalid-publisher` with a valid token: almost always a mismatch on repository
+# name, workflow filename, or owner id; or PyPI has an environment set while the claim is MISSING.
+# OIDC debug claims for this flow include:
+#   workflow_ref: .../.github/workflows/release.yml@refs/heads/main
+#   (expected for workflow_run; PyPI verifies job_workflow_ref against ref/sha claims.)
 #
 # Flow: push tag v* → workflow "CI" runs (build uploads dist artifact) → this workflow runs on
 # workflow_run(completed) → we confirm HEAD is exactly a semver tag → download dist → PyPI + GH Release.

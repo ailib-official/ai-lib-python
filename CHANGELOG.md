@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Release docs:** PyPI Trusted Publisher checklist documents required GitHub fields (including numeric owner id `268981910` for `ailib-official/ai-lib-python` and workflow file `release.yml`) to avoid Warehouse `invalid-publisher` lookups.
+
 ## [0.8.5] - 2026-05-07
 
 ### Fixed
