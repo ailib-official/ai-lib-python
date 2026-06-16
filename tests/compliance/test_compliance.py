@@ -8,7 +8,8 @@ compliance suite, ensuring cross-runtime behavioral consistency.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -17,7 +18,7 @@ import yaml
 from tests.compliance.conftest import COMPLIANCE_DIR
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    pass
 
 
 def discover_test_cases(compliance_dir: Path) -> list[dict[str, Any]]:
