@@ -106,24 +106,31 @@ class TestProtocolManifest:
 
     def test_v2_unknown_top_level_fields_allowed(self) -> None:
         """Forward-compat: future manifest keys must not break V2 parsing."""
+        import os
         from pathlib import Path
 
         import yaml
 
         from ai_lib_python.protocol.v2.manifest import ManifestV2
 
-        protocol_dir = Path(__file__).resolve().parents[3] / "ai-protocol"
+        compliance_dir = Path(
+            os.environ.get(
+                "COMPLIANCE_DIR",
+                str(
+                    Path(__file__).resolve().parents[2]
+                    / ".."
+                    / ".."
+                    / "ai-protocol"
+                    / "tests"
+                    / "compliance"
+                ),
+            )
+        ).resolve()
         fixture = (
-            protocol_dir
-            / "tests/compliance/fixtures/providers/mock-forward-compat-unknown-fields-v2.yaml"
+            compliance_dir / "fixtures/providers/mock-forward-compat-unknown-fields-v2.yaml"
         )
         if not fixture.exists():
-            protocol_dir = Path("D:/ai-protocol")
-            fixture = (
-                protocol_dir
-                / "tests/compliance/fixtures/providers/mock-forward-compat-unknown-fields-v2.yaml"
-            )
-        assert fixture.exists(), f"fixture missing: {fixture}"
+            pytest.skip(f"forward-compat fixture missing: {fixture}")
         data = yaml.safe_load(fixture.read_text(encoding="utf-8"))
         manifest = ManifestV2.model_validate(data)
         assert manifest.id == "google"
