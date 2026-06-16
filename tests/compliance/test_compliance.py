@@ -17,9 +17,6 @@ import yaml
 
 from tests.compliance.conftest import COMPLIANCE_DIR
 
-if TYPE_CHECKING:
-    pass
-
 
 def discover_test_cases(compliance_dir: Path) -> list[dict[str, Any]]:
     """Discover all YAML test cases from the compliance directory."""
