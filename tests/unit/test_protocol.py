@@ -104,6 +104,36 @@ class TestProtocolManifest:
         manifest = ProtocolManifest.model_validate(data)
         assert manifest.id == "test"
 
+    def test_v2_unknown_top_level_fields_allowed(self) -> None:
+        """Forward-compat: future manifest keys must not break V2 parsing."""
+        import os
+        from pathlib import Path
+
+        import yaml
+
+        from ai_lib_python.protocol.v2.manifest import ManifestV2
+
+        compliance_dir = Path(
+            os.environ.get(
+                "COMPLIANCE_DIR",
+                str(
+                    Path(__file__).resolve().parents[2]
+                    / ".."
+                    / ".."
+                    / "ai-protocol"
+                    / "tests"
+                    / "compliance"
+                ),
+            )
+        ).resolve()
+        fixture = compliance_dir / "fixtures/providers/mock-forward-compat-unknown-fields-v2.yaml"
+        if not fixture.exists():
+            pytest.skip(f"forward-compat fixture missing: {fixture}")
+        data = yaml.safe_load(fixture.read_text(encoding="utf-8"))
+        manifest = ManifestV2.model_validate(data)
+        assert manifest.id == "google"
+        assert manifest.protocol_version == "2.0"
+
     def test_capability_profile_field_is_preserved(self) -> None:
         """Test structured capability_profile can be parsed and preserved."""
         data = {
