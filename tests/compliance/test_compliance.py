@@ -46,10 +46,28 @@ def get_test_cases() -> list[dict[str, Any]]:
     return discover_test_cases(COMPLIANCE_DIR)
 
 
-def _load_provider_manifest(compliance_dir: Path, manifest_path: str) -> dict[str, Any] | None:
+def _resolve_manifest_path(
+    compliance_dir: Path, manifest_path: str, case: dict[str, Any] | None = None
+) -> Path | None:
+    """Resolve manifest path from compliance root or case YAML directory."""
+    candidates: list[Path] = [compliance_dir / manifest_path]
+    source = case.get("_source_file") if case else None
+    if isinstance(source, str):
+        candidates.insert(0, Path(source).resolve().parent / manifest_path)
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
+
+
+def _load_provider_manifest(
+    compliance_dir: Path,
+    manifest_path: str,
+    case: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """Load provider manifest from setup.manifest_path (relative to compliance dir)."""
-    path = compliance_dir / manifest_path
-    if not path.exists():
+    path = _resolve_manifest_path(compliance_dir, manifest_path, case)
+    if path is None:
         return None
     with path.open(encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -65,7 +83,7 @@ def _get_provider_classification(
     manifest_path = setup.get("manifest_path")
     if not manifest_path:
         return None
-    manifest = _load_provider_manifest(compliance_dir, manifest_path)
+    manifest = _load_provider_manifest(compliance_dir, manifest_path, case)
     if not manifest:
         return None
     return manifest.get("error_classification")
@@ -122,7 +140,7 @@ def _manifest_for_case(case: dict[str, Any]) -> Any:
     manifest_path = setup.get("manifest_path")
     if not isinstance(manifest_path, str):
         pytest.fail(f"[{case.get('id', 'unknown')}] manifest_path required")
-    raw = _load_provider_manifest(COMPLIANCE_DIR, manifest_path)
+    raw = _load_provider_manifest(COMPLIANCE_DIR, manifest_path, case)
     assert raw is not None, f"manifest not found: {manifest_path}"
     return ProtocolManifest.model_validate(raw)
 
@@ -355,7 +373,7 @@ def run_protocol_loading(
     manifest_path = input_data.get("manifest_path")
     if not isinstance(manifest_path, str) or not manifest_path:
         pytest.fail(f"[{case_id}] {case_name}: protocol_loading requires input.manifest_path")
-    manifest = _load_provider_manifest(COMPLIANCE_DIR, manifest_path)
+    manifest = _load_provider_manifest(COMPLIANCE_DIR, manifest_path, case)
     assert manifest is not None, f"[{case_id}] {case_name}: manifest not found at {manifest_path}"
 
     expected_valid = bool(expected.get("valid", False))
@@ -488,7 +506,7 @@ def run_parameter_mapping(
     setup = case.get("setup") if isinstance(case.get("setup"), dict) else {}
     manifest_path = setup.get("manifest_path")
     if isinstance(manifest_path, str):
-        manifest = _load_provider_manifest(COMPLIANCE_DIR, manifest_path) or {}
+        manifest = _load_provider_manifest(COMPLIANCE_DIR, manifest_path, case) or {}
         parameters = (
             manifest.get("parameters") if isinstance(manifest.get("parameters"), dict) else {}
         )

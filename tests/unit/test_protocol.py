@@ -126,9 +126,7 @@ class TestProtocolManifest:
                 ),
             )
         ).resolve()
-        fixture = (
-            compliance_dir / "fixtures/providers/mock-forward-compat-unknown-fields-v2.yaml"
-        )
+        fixture = compliance_dir / "fixtures/providers/mock-forward-compat-unknown-fields-v2.yaml"
         if not fixture.exists():
             pytest.skip(f"forward-compat fixture missing: {fixture}")
         data = yaml.safe_load(fixture.read_text(encoding="utf-8"))
