@@ -22,6 +22,13 @@ from ai_lib_python.types.tool import (
     ToolChoice,
     ToolDefinition,
 )
+from ai_lib_python.types.text_tool import (
+    PromptLevel,
+    StandardTextToolParser,
+    TextParsedToolCall,
+    TextToolConfig,
+    TextToolResult,
+)
 
 __all__ = [
     "AudioSource",
@@ -34,6 +41,11 @@ __all__ = [
     "MessageRole",
     # Event types
     "StreamingEvent",
+    "PromptLevel",
+    "StandardTextToolParser",
+    "TextParsedToolCall",
+    "TextToolConfig",
+    "TextToolResult",
     "ToolCall",
     "ToolChoice",
     # Tool types
