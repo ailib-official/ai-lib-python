@@ -127,6 +127,10 @@ def test_compliance(case: dict[str, Any]) -> None:
         run_credential_resolution(input_data, expected, case)
     elif test_type == "auth_attachment":
         run_auth_attachment(input_data, expected, case)
+    elif test_type == "text_tool_parse":
+        run_text_tool_parse(input_data, expected, case)
+    elif test_type == "text_tool_prompt":
+        run_text_tool_prompt(input_data, expected, case)
     else:
         pytest.skip(f"Test type '{test_type}' not yet implemented")
 
@@ -752,3 +756,75 @@ def run_provider_mock_behavior(
         assert got == value, (
             f"[{case_id}] {case_name}: response_assert {path} expected {value}, got {got}"
         )
+
+
+def run_text_tool_parse(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run text_tool_parse compliance test."""
+    from ai_lib_python.types.text_tool import StandardTextToolParser, TextToolConfig
+
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
+    response_text = input_data.get("response_text", "")
+    config_data = input_data.get("config") or {}
+    parser = StandardTextToolParser(
+        config=TextToolConfig(lenient_parsing=bool(config_data.get("lenient_parsing", False)))
+    )
+    remaining, calls = parser.parse(str(response_text))
+
+    if "remaining_text" in expected:
+        exp = str(expected["remaining_text"]).strip()
+        assert remaining.strip() == exp, (
+            f"[{case_id}] {case_name}: remaining_text expected {exp!r}, got {remaining.strip()!r}"
+        )
+
+    expected_calls = expected.get("tool_calls") or []
+    assert len(calls) == len(expected_calls), (
+        f"[{case_id}] {case_name}: tool_calls count expected {len(expected_calls)}, got {len(calls)}"
+    )
+    for i, (actual, exp_call) in enumerate(zip(calls, expected_calls, strict=True)):
+        assert actual.name == exp_call.get("name"), (
+            f"[{case_id}] tool_calls[{i}].name expected {exp_call.get('name')}, got {actual.name}"
+        )
+        if "arguments" in exp_call:
+            assert actual.arguments == exp_call["arguments"], (
+                f"[{case_id}] tool_calls[{i}].arguments expected {exp_call['arguments']}, "
+                f"got {actual.arguments}"
+            )
+
+
+def run_text_tool_prompt(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run text_tool_prompt compliance test."""
+    from ai_lib_python.types.text_tool import PromptLevel, StandardTextToolParser, TextToolConfig
+    from ai_lib_python.types.tool import FunctionDefinition, ToolDefinition
+
+    case_id = case.get("id", "unknown")
+    config_data = input_data.get("config") or {}
+    level_str = str(config_data.get("prompt_level", "L1")).upper()
+    level = PromptLevel(level_str) if level_str in PromptLevel.__members__ else PromptLevel.L1
+    locale = str(config_data.get("locale", "en"))
+    parser = StandardTextToolParser(config=TextToolConfig(prompt_level=level, locale=locale))
+
+    tools: list[ToolDefinition] = []
+    for item in input_data.get("tools") or []:
+        if not isinstance(item, dict):
+            continue
+        tools.append(
+            ToolDefinition(
+                function=FunctionDefinition(
+                    name=str(item.get("name", "")),
+                    description=item.get("description"),
+                )
+            )
+        )
+    prompt = parser.prompt_instructions(tools)
+    for needle in expected.get("prompt_contains") or []:
+        assert str(needle) in prompt, f"[{case_id}] prompt missing substring: {needle!r}"
+
