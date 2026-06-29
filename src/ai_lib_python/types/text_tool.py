@@ -112,7 +112,9 @@ def _parse_json_body(body: str, attr_name: str | None) -> tuple[str, dict[str, A
     return name, _normalize_arguments(value)
 
 
-def _parse_text_tool_calls(text: str, config: TextToolConfig) -> tuple[str, list[TextParsedToolCall]]:
+def _parse_text_tool_calls(
+    text: str, config: TextToolConfig
+) -> tuple[str, list[TextParsedToolCall]]:
     tool_calls: list[TextParsedToolCall] = []
     remaining = text
 
@@ -154,22 +156,22 @@ def _parse_text_tool_calls(text: str, config: TextToolConfig) -> tuple[str, list
     for start, end in sorted(spans_to_remove, key=lambda x: x[0], reverse=True):
         del chars[start:end]
     remaining_text = "".join(chars)
-    remaining_text = "\n".join(line.strip() for line in remaining_text.splitlines() if line.strip()).strip()
+    remaining_text = "\n".join(
+        line.strip() for line in remaining_text.splitlines() if line.strip()
+    ).strip()
 
     return remaining_text, tool_calls
 
 
 def _generate_prompt_instructions(tools: list[ToolDefinition], config: TextToolConfig) -> str:
-    tool_list = "\n".join(
-        f"- {t.function.name}: {t.function.description or ''}" for t in tools
-    )
+    tool_list = "\n".join(f"- {t.function.name}: {t.function.description or ''}" for t in tools)
     is_zh = config.locale.startswith("zh")
 
     if config.prompt_level == PromptLevel.L1 and is_zh:
         return (
             "## 工具调用协议\n\n"
             '<tool_call>\n{"name": "工具名", "arguments": {"参数": "值"}}\n</tool_call>\n\n'
-            f"可用工具：\n{tool_list}"
+            f"可用工具:\n{tool_list}"
         )
     if config.prompt_level == PromptLevel.L1:
         return (
@@ -181,10 +183,10 @@ def _generate_prompt_instructions(tools: list[ToolDefinition], config: TextToolC
         return (
             "## 工具调用协议\n\n"
             '<tool_call>\n{"name": "工具名", "arguments": {"参数": "值"}}\n</tool_call>\n\n'
-            "关键规则：\n"
+            "关键规则:\n"
             "- 只能使用 <tool_call>。<shell>、<bash>、<function> 将被忽略。\n"
             '- JSON 必须包含 "name" 和 "arguments"。\n\n'
-            f"可用工具：\n{tool_list}"
+            f"可用工具:\n{tool_list}"
         )
     if config.prompt_level == PromptLevel.L2:
         return (
@@ -235,7 +237,9 @@ class StandardTextToolParser:
         config = TextToolConfig(lenient_parsing=True, prompt_level=PromptLevel.L2)
         fallback = tool_calling.get("text_fallback") or {}
         level = str(fallback.get("prompt_level", "L2")).upper()
-        config.prompt_level = PromptLevel(level) if level in PromptLevel.__members__ else PromptLevel.L2
+        config.prompt_level = (
+            PromptLevel(level) if level in PromptLevel.__members__ else PromptLevel.L2
+        )
         if isinstance(fallback.get("args_key"), str):
             config.args_key = fallback["args_key"]
         config.include_counterexamples = config.prompt_level != PromptLevel.L1

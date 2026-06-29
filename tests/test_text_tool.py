@@ -26,14 +26,10 @@ def test_lenient_shell_dialect() -> None:
 
 
 def test_prompt_l2_contains_counterexamples() -> None:
-    parser = StandardTextToolParser(
-        config=TextToolConfig(prompt_level=PromptLevel.L2, locale="en")
-    )
+    parser = StandardTextToolParser(config=TextToolConfig(prompt_level=PromptLevel.L2, locale="en"))
     tools = [
         ToolDefinition(
-            function=FunctionDefinition(
-                name="shell", description="Execute shell commands"
-            )
+            function=FunctionDefinition(name="shell", description="Execute shell commands")
         )
     ]
     prompt = parser.prompt_instructions(tools)
