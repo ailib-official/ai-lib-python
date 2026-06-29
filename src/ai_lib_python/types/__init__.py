@@ -8,6 +8,11 @@ This module provides the core data structures for AI model interaction:
 """
 
 from ai_lib_python.types.events import StreamingEvent
+from ai_lib_python.types.execution_result import (
+    ExecutionMetadata,
+    ExecutionResult,
+    ExecutionUsage,
+)
 from ai_lib_python.types.message import (
     AudioSource,
     ContentBlock,
@@ -33,6 +38,9 @@ from ai_lib_python.types.tool import (
 __all__ = [
     "AudioSource",
     "ContentBlock",
+    "ExecutionMetadata",
+    "ExecutionResult",
+    "ExecutionUsage",
     "FunctionDefinition",
     "ImageSource",
     # Message types

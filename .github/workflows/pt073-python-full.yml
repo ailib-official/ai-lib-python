@@ -44,6 +44,15 @@ jobs:
           python "${{ github.workspace }}/ai-protocol/tests/compliance/ep-boundary/check_ep_boundary.py" \
             --python-root "${{ github.workspace }}/ai-lib-python"
 
+      - name: ExecutionMetadata samples — schema validation
+        run: |
+          python "${{ github.workspace }}/ai-protocol/tests/compliance/ep-boundary/validate_execution_metadata_samples.py" \
+            --protocol-root "${{ github.workspace }}/ai-protocol"
+
+      - name: Contact layer — import smoke
+        run: |
+          python -c "import ai_lib_python.routing, ai_lib_python.resilience"
+
       - name: Compliance tests (full matrix)
         env:
           COMPLIANCE_DIR: ${{ github.workspace }}/ai-protocol/tests/compliance
@@ -53,3 +62,8 @@ jobs:
         env:
           COMPLIANCE_DIR: ${{ github.workspace }}/ai-protocol/tests/compliance
         run: python -m pytest tests/architecture/test_execution_layer_import_boundary.py -q --tb=short
+
+      - name: ExecutionMetadata — runtime schema test
+        env:
+          AI_PROTOCOL_DIR: ${{ github.workspace }}/ai-protocol
+        run: python -m pytest tests/types/test_execution_metadata_schema.py -q --tb=short
