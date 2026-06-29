@@ -1,6 +1,5 @@
-# E/P 边界：执行层返回结果类型（Paper1 §3.1–3.2）。
-#
-# E/P boundary — execution result types (Paper1 section 3.1–3.2).
+# E/P boundary: execution result types (Paper1 section 3.1-3.2).
+# E/P 边界: 执行层返回结果类型 (Paper1 3.1-3.2).
 #
 # The execution layer (E) returns ExecutionResult with ExecutionMetadata.
 # The contact / policy layer (P) consumes metadata for routing, retry, and degradation.
