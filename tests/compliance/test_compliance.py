@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import jsonschema
+import fastjsonschema
 import pytest
 import yaml
 
@@ -389,15 +389,14 @@ def _document_mapping_schema() -> dict[str, Any]:
 
 
 def _schema_validation_errors(data: dict[str, Any], schema: dict[str, Any]) -> list[str]:
-    validator = jsonschema.Draft202012Validator(schema)
-    errors: list[str] = []
-    for error in validator.iter_errors(data):
-        path = ".".join(str(part) for part in error.absolute_path)
-        if path:
-            errors.append(f"{path}: {error.message}")
-        else:
-            errors.append(error.message)
-    return errors
+    try:
+        validator = fastjsonschema.compile(schema)
+        validator(data)
+        return []
+    except fastjsonschema.JsonSchemaValueException as exc:
+        return [str(exc.message)]
+    except Exception as exc:  # pragma: no cover - defensive
+        return [f"schema validation error: {exc}"]
 
 
 def _normalize_contract_for_schema(contract: dict[str, Any]) -> dict[str, Any]:
