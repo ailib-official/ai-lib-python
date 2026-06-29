@@ -45,9 +45,7 @@ def get_test_cases() -> list[dict[str, Any]]:
     if not COMPLIANCE_DIR.exists():
         return []
     subset = compliance_subset()
-    return [
-        c for c in discover_test_cases(COMPLIANCE_DIR) if case_matches_subset(c, subset)
-    ]
+    return [c for c in discover_test_cases(COMPLIANCE_DIR) if case_matches_subset(c, subset)]
 
 
 def _resolve_manifest_path(
@@ -950,4 +948,3 @@ def run_text_tool_prompt(
     prompt = parser.prompt_instructions(tools)
     for needle in expected.get("prompt_contains") or []:
         assert str(needle) in prompt, f"[{case_id}] prompt missing substring: {needle!r}"
-
