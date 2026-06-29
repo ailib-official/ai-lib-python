@@ -7,15 +7,18 @@ compliance suite, ensuring cross-runtime behavioral consistency.
 
 from __future__ import annotations
 
+import json
 import os
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import jsonschema
 import pytest
 import yaml
 
-from tests.compliance.conftest import COMPLIANCE_DIR
+from tests.compliance.conftest import COMPLIANCE_DIR, case_matches_subset, compliance_subset
 
 
 def discover_test_cases(compliance_dir: Path) -> list[dict[str, Any]]:
@@ -41,7 +44,10 @@ def get_test_cases() -> list[dict[str, Any]]:
     """Get all test cases, parametrized for pytest."""
     if not COMPLIANCE_DIR.exists():
         return []
-    return discover_test_cases(COMPLIANCE_DIR)
+    subset = compliance_subset()
+    return [
+        c for c in discover_test_cases(COMPLIANCE_DIR) if case_matches_subset(c, subset)
+    ]
 
 
 def _resolve_manifest_path(
@@ -364,6 +370,119 @@ def _capability_profile_phase_errors(manifest: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _protocol_root() -> Path:
+    """AI-Protocol repo root (parent of tests/)."""
+    return COMPLIANCE_DIR.parent.parent
+
+
+@lru_cache(maxsize=1)
+def _load_provider_contract_schema() -> dict[str, Any]:
+    schema_path = _protocol_root() / "schemas" / "v2" / "provider-contract.json"
+    return json.loads(schema_path.read_text(encoding="utf-8"))
+
+
+def _document_mapping_schema() -> dict[str, Any]:
+    schema = _load_provider_contract_schema()
+    return schema["properties"]["request_mapping"]["properties"]["content_block_mapping"][
+        "properties"
+    ]["document"]
+
+
+def _schema_validation_errors(data: dict[str, Any], schema: dict[str, Any]) -> list[str]:
+    validator = jsonschema.Draft202012Validator(schema)
+    errors: list[str] = []
+    for error in validator.iter_errors(data):
+        path = ".".join(str(part) for part in error.absolute_path)
+        if path:
+            errors.append(f"{path}: {error.message}")
+        else:
+            errors.append(error.message)
+    return errors
+
+
+def _normalize_contract_for_schema(contract: dict[str, Any]) -> dict[str, Any]:
+    """Drop YAML metadata keys not declared in provider-contract.json."""
+    normalized = dict(contract)
+    normalized.pop("$schema", None)
+    return normalized
+
+
+def _load_provider_contract(contract_path: str) -> dict[str, Any]:
+    path = _protocol_root() / contract_path
+    if not path.exists():
+        raise FileNotFoundError(f"contract not found: {path}")
+    with path.open(encoding="utf-8") as handle:
+        loaded = yaml.safe_load(handle)
+    if not isinstance(loaded, dict):
+        raise ValueError(f"contract must be a mapping: {path}")
+    return loaded
+
+
+def _document_mapping_from_contract(contract: dict[str, Any]) -> dict[str, Any] | None:
+    request_mapping = contract.get("request_mapping")
+    if not isinstance(request_mapping, dict):
+        return None
+    block_mapping = request_mapping.get("content_block_mapping")
+    if not isinstance(block_mapping, dict):
+        return None
+    document = block_mapping.get("document")
+    return document if isinstance(document, dict) else None
+
+
+def _run_contract_schema_validation(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """PT-079 contract-schema-validation cases (cbe-001..003)."""
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
+    expected_valid = bool(expected.get("valid", False))
+
+    contract_fragment = input_data.get("contract_fragment")
+    if isinstance(contract_fragment, dict):
+        document = contract_fragment.get("document")
+        if not isinstance(document, dict):
+            pytest.fail(f"[{case_id}] {case_name}: contract_fragment requires document mapping")
+        schema_errors = _schema_validation_errors(document, _document_mapping_schema())
+        actual_valid = not schema_errors
+        assert actual_valid == expected_valid, (
+            f"[{case_id}] {case_name}: valid expected {expected_valid}, got {actual_valid}; "
+            f"errors={schema_errors}"
+        )
+        allowed = expected.get("ref_resolution_allowed")
+        if isinstance(allowed, list):
+            ref_resolution = document.get("ref_resolution")
+            assert ref_resolution in allowed, (
+                f"[{case_id}] {case_name}: ref_resolution {ref_resolution!r} not in {allowed}"
+            )
+        return
+
+    contract_path = input_data.get("contract_path")
+    if not isinstance(contract_path, str) or not contract_path:
+        pytest.fail(f"[{case_id}] {case_name}: validate_contract_schema requires contract_path")
+
+    contract = _normalize_contract_for_schema(_load_provider_contract(contract_path))
+    schema_errors = _schema_validation_errors(contract, _load_provider_contract_schema())
+    actual_valid = not schema_errors
+    assert actual_valid == expected_valid, (
+        f"[{case_id}] {case_name}: valid expected {expected_valid}, got {actual_valid}; "
+        f"errors={schema_errors}"
+    )
+
+    expected_mapping = expected.get("document_mapping")
+    if isinstance(expected_mapping, dict):
+        actual_mapping = _document_mapping_from_contract(contract)
+        assert actual_mapping is not None, (
+            f"[{case_id}] {case_name}: contract missing request_mapping.content_block_mapping.document"
+        )
+        for key, value in expected_mapping.items():
+            assert actual_mapping.get(key) == value, (
+                f"[{case_id}] {case_name}: document_mapping.{key} expected {value!r}, "
+                f"got {actual_mapping.get(key)!r}"
+            )
+
+
 def run_protocol_loading(
     input_data: dict[str, Any],
     expected: dict[str, Any],
@@ -372,6 +491,11 @@ def run_protocol_loading(
     """Run protocol_loading test."""
     case_id = case.get("id", "unknown")
     case_name = case.get("name", "unnamed")
+
+    if input_data.get("validate_contract_schema") or "contract_fragment" in input_data:
+        _run_contract_schema_validation(input_data, expected, case)
+        return
+
     manifest_path = input_data.get("manifest_path")
     if not isinstance(manifest_path, str) or not manifest_path:
         pytest.fail(f"[{case_id}] {case_name}: protocol_loading requires input.manifest_path")
