@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Migration (E/P separation)
+
+- **Core-only (E):** `pip install ai-lib-python` — use `ai_lib_python.client`, protocol types, and compliance-covered execution modules.
+- **Policy (P):** optional extras `[contact]` / `[full]` for routing, resilience, guardrails, batch, plugins, telemetry, etc.
+- **Do not** statically import P-layer modules from E-only code paths; client loads optional resilience via `importlib` when configured.
+- **CI boundary:** `check_ep_boundary.py` + `tests/architecture/` (see ai-protocol `module-matrix.yaml`).
+
 ### Fixed
 
 - **Release docs:** PyPI Trusted Publisher checklist documents required GitHub fields (including numeric owner id `268981910` for `ailib-official/ai-lib-python` and workflow file `release.yml`) to avoid Warehouse `invalid-publisher` lookups.
