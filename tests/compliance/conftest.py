@@ -48,6 +48,35 @@ COMPLIANCE_DIR = Path(
         str(_DEFAULT_COMPLIANCE.resolve()),
     )
 )
+_COMPLIANCE_DIR_EXPLICIT = "COMPLIANCE_DIR" in os.environ
+
+
+def _compliance_ci_strict() -> bool:
+    """Strict fail-closed only when CI/workflow explicitly sets COMPLIANCE_DIR."""
+    return _COMPLIANCE_DIR_EXPLICIT
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _require_compliance_dir_in_ci() -> None:
+    """Fail closed when workflow sets COMPLIANCE_DIR but the directory is missing."""
+    if not COMPLIANCE_DIR.exists() and _compliance_ci_strict():
+        pytest.fail(f"COMPLIANCE_DIR does not exist: {COMPLIANCE_DIR}")
+
+
+def pytest_collection_modifyitems(
+    session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Ensure compliance matrix is non-empty when COMPLIANCE_DIR is set (QA-python-005)."""
+    if not _compliance_ci_strict():
+        return
+    compliance_items = [i for i in items if getattr(i, "originalname", i.name) == "test_compliance"]
+    subset = compliance_subset()
+    min_cases = 8 if subset == "e_only" else 25
+    if len(compliance_items) < min_cases:
+        pytest.fail(
+            f"Expected at least {min_cases} compliance parametrized cases "
+            f"(subset={subset!r}), got {len(compliance_items)}"
+        )
 
 
 @pytest.fixture(scope="session")

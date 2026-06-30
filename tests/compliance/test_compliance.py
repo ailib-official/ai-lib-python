@@ -42,7 +42,11 @@ def discover_test_cases(compliance_dir: Path) -> list[dict[str, Any]]:
 
 def get_test_cases() -> list[dict[str, Any]]:
     """Get all test cases, parametrized for pytest."""
+    from tests.compliance.conftest import _compliance_ci_strict
+
     if not COMPLIANCE_DIR.exists():
+        if _compliance_ci_strict():
+            pytest.fail(f"COMPLIANCE_DIR does not exist: {COMPLIANCE_DIR}")
         return []
     subset = compliance_subset()
     return [c for c in discover_test_cases(COMPLIANCE_DIR) if case_matches_subset(c, subset)]
@@ -135,7 +139,19 @@ def test_compliance(case: dict[str, Any]) -> None:
         run_text_tool_parse(input_data, expected, case)
     elif test_type == "text_tool_prompt":
         run_text_tool_prompt(input_data, expected, case)
+    elif test_type == "capability_check":
+        run_capability_check(input_data, expected, case)
+    elif test_type == "response_parsing":
+        run_response_parsing(input_data, expected, case)
+    elif test_type == "request_building":
+        run_request_building(input_data, expected, case)
+    elif test_type == "content_block_encode":
+        run_content_block_encode(input_data, expected, case)
     else:
+        from tests.compliance.conftest import _compliance_ci_strict
+
+        if _compliance_ci_strict():
+            pytest.fail(f"Test type '{test_type}' not yet implemented")
         pytest.skip(f"Test type '{test_type}' not yet implemented")
 
 
@@ -594,6 +610,228 @@ def run_retry_decision(
             assert min_expected <= delay_ms <= max_expected, (
                 f"[{case_id}] {case_name}: delay_ms={delay_ms} out of range [{min_expected}, {max_expected}]"
             )
+
+
+def run_capability_check(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run capability_check test via ProtocolManifest (QA-python-004 partial)."""
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
+    manifest = _manifest_for_case(case)
+    manifest_raw = _load_provider_manifest(
+        COMPLIANCE_DIR,
+        case["setup"]["manifest_path"],
+        case,
+    )
+    assert manifest_raw is not None, f"[{case_id}] {case_name}: manifest not found"
+
+    cap_tags = _manifest_capability_tags(manifest_raw)
+    caps_present = expected.get("capabilities_present") or {}
+    for required in caps_present.get("required") or []:
+        assert str(required) in cap_tags or _capability_flag(manifest, str(required)), (
+            f"[{case_id}] {case_name}: required capability {required!r} missing"
+        )
+    for optional in caps_present.get("optional_contains") or []:
+        assert str(optional) in cap_tags or _capability_flag(manifest, str(optional)), (
+            f"[{case_id}] {case_name}: optional capability {optional!r} missing"
+        )
+
+    feature_flags = manifest_raw.get("feature_flags") if isinstance(manifest_raw, dict) else {}
+    if not isinstance(feature_flags, dict):
+        feature_flags = {}
+    for key, value in (expected.get("feature_flags") or {}).items():
+        assert feature_flags.get(key) == value, (
+            f"[{case_id}] {case_name}: feature_flags[{key!r}] expected {value!r}, "
+            f"got {feature_flags.get(key)!r}"
+        )
+
+    required_cap = input_data.get("required_capability")
+    if isinstance(required_cap, str):
+        declared = required_cap in cap_tags
+        if "capability_declared" in expected:
+            assert declared == bool(expected["capability_declared"]), (
+                f"[{case_id}] {case_name}: capability_declared expected "
+                f"{expected['capability_declared']}, got {declared}"
+            )
+        if expected.get("mcp_integration_method") == "tool_bridge" and declared:
+            assert required_cap == "mcp_client", (
+                f"[{case_id}] {case_name}: tool_bridge gating expects mcp_client capability"
+            )
+
+
+def _manifest_capability_tags(manifest_raw: dict[str, Any]) -> set[str]:
+    caps = manifest_raw.get("capabilities")
+    if isinstance(caps, list):
+        return {str(tag) for tag in caps}
+    if isinstance(caps, dict):
+        tags = [*(caps.get("required") or []), *(caps.get("optional") or [])]
+        return {str(tag) for tag in tags}
+    return set()
+
+
+def _capability_flag(manifest: Any, name: str) -> bool:
+    attr = name.replace("-", "_")
+    caps = getattr(manifest, "capabilities", None)
+    if caps is None:
+        return False
+    return bool(getattr(caps, attr, False))
+
+
+def run_response_parsing(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run response_parsing via AiClient._parse_response (QA-python-004 partial)."""
+    from ai_lib_python.client.core import AiClient
+
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
+    manifest = _manifest_for_case(case)
+    body = input_data.get("response_body")
+    assert isinstance(body, dict), f"[{case_id}] {case_name}: response_body must be a mapping"
+
+    client = AiClient.__new__(AiClient)
+    client._manifest = manifest
+    response = AiClient._parse_response(client, body, manifest=manifest)
+
+    expected_usage = expected.get("usage") or {}
+    if expected_usage:
+        assert response.prompt_tokens == expected_usage.get("prompt_tokens"), (
+            f"[{case_id}] {case_name}: prompt_tokens mismatch"
+        )
+        assert response.completion_tokens == expected_usage.get("completion_tokens"), (
+            f"[{case_id}] {case_name}: completion_tokens mismatch"
+        )
+        assert response.total_tokens == expected_usage.get("total_tokens"), (
+            f"[{case_id}] {case_name}: total_tokens mismatch"
+        )
+        if "reasoning_tokens" in expected_usage:
+            assert response.reasoning_tokens == expected_usage.get("reasoning_tokens"), (
+                f"[{case_id}] {case_name}: reasoning_tokens mismatch"
+            )
+
+
+def run_request_building(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run request_building via ChatRequestBuilder.build_payload (QA-python-004 partial)."""
+    from ai_lib_python.client.builder import ChatRequestBuilder
+    from ai_lib_python.client.core import AiClient
+
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
+    manifest = _manifest_for_case(case)
+    client = AiClient.__new__(AiClient)
+    client._manifest = manifest
+    client._model_id = "mock-openai"
+
+    builder = ChatRequestBuilder(client)
+    for msg in input_data.get("messages") or []:
+        if not isinstance(msg, dict):
+            continue
+        role = str(msg.get("role", "user"))
+        content = msg.get("content", "")
+        if role == "system":
+            builder.system(str(content))
+        elif role == "assistant":
+            builder.assistant(str(content))
+        else:
+            builder.user(str(content))
+
+    for key, value in (input_data.get("parameters") or {}).items():
+        builder.param(str(key), value)
+
+    payload = builder.build_payload(manifest=manifest, model_id="mock-openai")
+    for key, value in (expected.get("request_contains") or {}).items():
+        assert payload.get(key) == value, (
+            f"[{case_id}] {case_name}: request field {key!r} expected {value!r}, got {payload.get(key)!r}"
+        )
+
+
+def run_content_block_encode(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run content_block_encode (ALR-DOC-002 parity; production module pending)."""
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
+    api_style = input_data.get("api_style")
+    blocks = input_data.get("blocks") or []
+    expect_error = bool(input_data.get("expect_error"))
+
+    try:
+        encoded = _encode_content_blocks(str(api_style), blocks)
+    except ValueError as exc:
+        if expect_error:
+            return
+        pytest.fail(f"[{case_id}] {case_name}: unexpected encode error: {exc}")
+
+    if expect_error:
+        pytest.fail(f"[{case_id}] {case_name}: expected encode error but succeeded")
+
+    assert encoded == expected.get("encoded"), (
+        f"[{case_id}] {case_name}: encoded mismatch\n  got: {encoded!r}\n  "
+        f"expected: {expected.get('encoded')!r}"
+    )
+
+
+def _encode_content_blocks(api_style: str, blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if api_style == "anthropic_messages":
+        return [_encode_anthropic_block(b) for b in blocks]
+    if api_style == "gemini_generate":
+        return [_encode_gemini_block(b) for b in blocks]
+    raise ValueError(f"unsupported api_style: {api_style}")
+
+
+def _encode_anthropic_block(block: dict[str, Any]) -> dict[str, Any]:
+    block_type = str(block.get("block_type", "text"))
+    if block_type == "text":
+        return {"type": "text", "text": str(block.get("text", ""))}
+    if block_type != "document":
+        raise ValueError(f"unsupported block_type: {block_type}")
+    source_type = str(block.get("source_type", "base64"))
+    if source_type == "ref":
+        raise ValueError(
+            "document ref must be resolved to base64 or url before sending to Anthropic"
+        )
+    if source_type != "base64":
+        raise ValueError(f"unsupported document source_type: {source_type}")
+    return {
+        "type": "document",
+        "source": {
+            "type": "base64",
+            "media_type": str(block.get("mime_type", "application/pdf")),
+            "data": str(block.get("data", "")),
+        },
+    }
+
+
+def _encode_gemini_block(block: dict[str, Any]) -> dict[str, Any]:
+    block_type = str(block.get("block_type", "text"))
+    if block_type == "text":
+        return {"text": str(block.get("text", ""))}
+    if block_type != "document":
+        raise ValueError(f"unsupported block_type: {block_type}")
+    source_type = str(block.get("source_type", "base64"))
+    if source_type == "ref":
+        raise ValueError(
+            "Gemini document blocks require base64 inline data; resolve ref before send"
+        )
+    if source_type != "base64":
+        raise ValueError(f"unsupported document source_type: {source_type}")
+    return {
+        "inlineData": {
+            "mimeType": str(block.get("mime_type", "application/pdf")),
+            "data": str(block.get("data", "")),
+        }
+    }
 
 
 def run_message_building(
