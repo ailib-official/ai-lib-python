@@ -470,13 +470,23 @@ class ChatRequestBuilder:
         self._extra_params[key] = value
         return self
 
-    def build_payload(self) -> dict[str, Any]:
+    def build_payload(
+        self,
+        *,
+        manifest: ProtocolManifest | None = None,
+        model_id: str | None = None,
+    ) -> dict[str, Any]:
         """Build the request payload.
+
+        Args:
+            manifest: Optional manifest override (fallback path; avoids mutating client state).
+            model_id: Optional model id override for fallback attempts.
 
         Returns:
             Request payload dictionary
         """
-        manifest = self._client._manifest
+        active_manifest = manifest if manifest is not None else self._client._manifest
+        active_model = model_id if model_id is not None else self._client._model_id
 
         # Build messages
         messages_payload = []
@@ -492,40 +502,40 @@ class ChatRequestBuilder:
             messages_payload.append(msg_dict)
 
         payload: dict[str, Any] = {
-            manifest.get_parameter_name("messages") if manifest else "messages": messages_payload,
-            "model": self._client._model_id,
+            active_manifest.get_parameter_name("messages") if active_manifest else "messages": messages_payload,
+            "model": active_model,
         }
 
         # Add optional parameters
         if self._temperature is not None:
-            key = manifest.get_parameter_name("temperature") if manifest else "temperature"
+            key = active_manifest.get_parameter_name("temperature") if active_manifest else "temperature"
             payload[key] = self._temperature
 
         if self._max_tokens is not None:
-            key = manifest.get_parameter_name("max_tokens") if manifest else "max_tokens"
+            key = active_manifest.get_parameter_name("max_tokens") if active_manifest else "max_tokens"
             payload[key] = self._max_tokens
 
         if self._top_p is not None:
-            key = manifest.get_parameter_name("top_p") if manifest else "top_p"
+            key = active_manifest.get_parameter_name("top_p") if active_manifest else "top_p"
             payload[key] = self._top_p
 
         if self._stop_sequences:
-            key = manifest.get_parameter_name("stop_sequences") if manifest else "stop"
+            key = active_manifest.get_parameter_name("stop_sequences") if active_manifest else "stop"
             payload[key] = self._stop_sequences
 
         if self._tools:
-            key = manifest.get_parameter_name("tools") if manifest else "tools"
+            key = active_manifest.get_parameter_name("tools") if active_manifest else "tools"
             payload[key] = [t.model_dump(exclude_none=True) for t in self._tools]
 
         if self._tool_choice:
-            key = manifest.get_parameter_name("tool_choice") if manifest else "tool_choice"
+            key = active_manifest.get_parameter_name("tool_choice") if active_manifest else "tool_choice"
             if hasattr(self._tool_choice, "value"):
                 payload[key] = self._tool_choice.value
             else:
                 payload[key] = self._tool_choice
 
         if self._stream:
-            key = manifest.get_parameter_name("stream") if manifest else "stream"
+            key = active_manifest.get_parameter_name("stream") if active_manifest else "stream"
             payload[key] = True
 
         # Add extra parameters

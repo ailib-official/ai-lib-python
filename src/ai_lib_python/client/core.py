@@ -271,22 +271,11 @@ class AiClient:
                     p: Pipeline = pipeline,
                     mid: str = model,
                 ) -> ChatResponse:
-                    original_model_id = self._model_id
-                    original_manifest = self._manifest
-                    try:
-                        self._model_id = mid
-                        self._manifest = m
-                        payload = builder.build_payload()
-                    finally:
-                        self._model_id = original_model_id
-                        self._manifest = original_manifest
-
+                    payload = builder.build_payload(manifest=m, model_id=mid)
                     endpoint = m.get_chat_endpoint()
                     response = await t.post(endpoint, json=payload)
                     data = response.json()
-
-                    # Parse using the correct pipeline
-                    return self._parse_response(data)
+                    return self._parse_response(data, manifest=m)
 
                 # Use executor if available for resilience
                 if self._executor:
@@ -397,7 +386,12 @@ class AiClient:
 
         return wrapped_stream(), stats
 
-    def _parse_response(self, data: dict[str, Any]) -> ChatResponse:
+    def _parse_response(
+        self,
+        data: dict[str, Any],
+        *,
+        manifest: ProtocolManifest | None = None,
+    ) -> ChatResponse:
         """Parse API response to ChatResponse.
 
         Non-streaming extraction follows ai-lib-rust ``extract_nonstream_response``:
@@ -406,6 +400,7 @@ class AiClient:
 
         Args:
             data: Raw API response
+            manifest: Optional manifest override for fallback parsing
 
         Returns:
             Parsed ChatResponse
@@ -413,8 +408,8 @@ class AiClient:
         from ai_lib_python.pipeline.select import get_value_at_path
 
         response = ChatResponse(raw_response=data)
-        manifest = self._manifest
-        rp = manifest.response_paths
+        active_manifest = manifest if manifest is not None else self._manifest
+        rp = active_manifest.response_paths
 
         def first_non_empty_str(paths: list[str | None]) -> str:
             for raw in paths:
