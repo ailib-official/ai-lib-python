@@ -22,7 +22,8 @@ def compliance_events_from_openai_frame(frame: dict[str, Any]) -> list[dict[str,
     if not isinstance(choices, list) or not choices:
         return []
     choice = choices[0] if isinstance(choices[0], dict) else {}
-    delta = choice.get("delta") if isinstance(choice.get("delta"), dict) else {}
+    delta_raw = choice.get("delta")
+    delta = delta_raw if isinstance(delta_raw, dict) else {}
 
     out: list[dict[str, Any]] = []
     if "content" in delta:
