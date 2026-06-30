@@ -344,44 +344,77 @@ def run_error_classification(
         )
 
 
-def _manifest_has_required_shape(manifest: dict[str, Any]) -> bool:
-    """Minimal required shape for protocol_loading compliance."""
-    if not isinstance(manifest.get("id"), str) or not manifest.get("id"):
-        return False
-    if not isinstance(manifest.get("protocol_version"), str) or not manifest.get(
-        "protocol_version"
-    ):
-        return False
-    endpoint = manifest.get("endpoint")
-    if not isinstance(endpoint, dict):
-        return False
-    base_url = endpoint.get("base_url")
-    return isinstance(base_url, str) and bool(base_url)
+def run_protocol_loading(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run protocol_loading test via production ProtocolLoader + manifest models."""
+    from ai_lib_python.pipeline.compliance import compliance_load_manifest_file
 
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
 
-def _capability_profile_phase_errors(manifest: dict[str, Any]) -> list[str]:
-    """Return staged capability_profile semantic errors for IOS/IOSPC phases."""
-    cp = manifest.get("capability_profile")
-    if cp is None:
-        return []
-    if not isinstance(cp, dict):
-        return ["capability_profile must be object"]
+    if input_data.get("validate_contract_schema") or "contract_fragment" in input_data:
+        _run_contract_schema_validation(input_data, expected, case)
+        return
 
-    errors: list[str] = []
-    phase = cp.get("phase")
-    if phase == "ios_v1":
-        if "process" in cp or "contract" in cp:
-            errors.append("must NOT have additional properties")
-        if not any(key in cp for key in ("inputs", "outcomes", "systems")):
-            errors.append("must match at least one schema in anyOf")
-    elif phase == "iospc_v1":
-        if not any(key in cp for key in ("inputs", "outcomes", "systems")):
-            errors.append("iospc_v1 requires inputs or outcomes or systems")
-        if "process" not in cp and "contract" not in cp:
-            errors.append("iospc_v1 requires process or contract")
-    elif phase is not None:
-        errors.append("phase must be ios_v1 or iospc_v1")
-    return errors
+    manifest_path = input_data.get("manifest_path")
+    if not isinstance(manifest_path, str) or not manifest_path:
+        pytest.fail(f"[{case_id}] {case_name}: protocol_loading requires input.manifest_path")
+
+    resolved = _resolve_manifest_path(COMPLIANCE_DIR, manifest_path, case)
+    if resolved is None:
+        pytest.fail(f"[{case_id}] {case_name}: manifest not found at {manifest_path}")
+
+    result = compliance_load_manifest_file(resolved)
+    manifest = result.manifest or {}
+
+    expected_valid = bool(expected.get("valid", False))
+    assert result.valid == expected_valid, (
+        f"[{case_id}] {case_name}: valid expected {expected_valid}, got {result.valid} "
+        f"(errors={result.errors})"
+    )
+
+    expected_errors_raw = expected.get("errors")
+    expected_errors = (
+        [str(item) for item in expected_errors_raw if isinstance(item, str)]
+        if isinstance(expected_errors_raw, list)
+        else []
+    )
+    if expected_errors:
+        actual_error_text = " | ".join(result.errors)
+        for expected_error in expected_errors:
+            assert expected_error in actual_error_text, (
+                f"[{case_id}] {case_name}: expected error '{expected_error}' not found in '{actual_error_text}'"
+            )
+
+    if expected_valid:
+        if "provider_id" in expected:
+            assert manifest.get("id") == expected["provider_id"], (
+                f"[{case_id}] {case_name}: provider_id expected {expected['provider_id']}, "
+                f"got {manifest.get('id')}"
+            )
+        if "protocol_version" in expected:
+            assert manifest.get("protocol_version") == expected["protocol_version"], (
+                f"[{case_id}] {case_name}: protocol_version expected {expected['protocol_version']}, "
+                f"got {manifest.get('protocol_version')}"
+            )
+    else:
+        from ai_lib_python.pipeline.compliance import capability_profile_phase_errors
+
+        missing_required = []
+        if not manifest.get("id"):
+            missing_required.append("id")
+        if not manifest.get("protocol_version"):
+            missing_required.append("protocol_version")
+        endpoint = manifest.get("endpoint")
+        if not isinstance(endpoint, dict) or not endpoint.get("base_url"):
+            missing_required.append("endpoint.base_url")
+        cp_errors = capability_profile_phase_errors(manifest)
+        assert missing_required or cp_errors or result.errors, (
+            f"[{case_id}] {case_name}: expected invalid manifest to fail required-shape or IOS checks"
+        )
 
 
 def _protocol_root() -> Path:
@@ -494,72 +527,6 @@ def _run_contract_schema_validation(
                 f"[{case_id}] {case_name}: document_mapping.{key} expected {value!r}, "
                 f"got {actual_mapping.get(key)!r}"
             )
-
-
-def run_protocol_loading(
-    input_data: dict[str, Any],
-    expected: dict[str, Any],
-    case: dict[str, Any],
-) -> None:
-    """Run protocol_loading test."""
-    case_id = case.get("id", "unknown")
-    case_name = case.get("name", "unnamed")
-
-    if input_data.get("validate_contract_schema") or "contract_fragment" in input_data:
-        _run_contract_schema_validation(input_data, expected, case)
-        return
-
-    manifest_path = input_data.get("manifest_path")
-    if not isinstance(manifest_path, str) or not manifest_path:
-        pytest.fail(f"[{case_id}] {case_name}: protocol_loading requires input.manifest_path")
-    manifest = _load_provider_manifest(COMPLIANCE_DIR, manifest_path, case)
-    assert manifest is not None, f"[{case_id}] {case_name}: manifest not found at {manifest_path}"
-
-    expected_valid = bool(expected.get("valid", False))
-    cp_errors = _capability_profile_phase_errors(manifest)
-    actual_valid = _manifest_has_required_shape(manifest) and not cp_errors
-
-    assert actual_valid == expected_valid, (
-        f"[{case_id}] {case_name}: valid expected {expected_valid}, got {actual_valid}"
-    )
-
-    expected_errors_raw = expected.get("errors")
-    expected_errors = (
-        [str(item) for item in expected_errors_raw if isinstance(item, str)]
-        if isinstance(expected_errors_raw, list)
-        else []
-    )
-    if expected_errors:
-        actual_error_text = " | ".join(cp_errors)
-        for expected_error in expected_errors:
-            assert expected_error in actual_error_text, (
-                f"[{case_id}] {case_name}: expected error '{expected_error}' not found in '{actual_error_text}'"
-            )
-
-    if expected_valid:
-        if "provider_id" in expected:
-            assert manifest.get("id") == expected["provider_id"], (
-                f"[{case_id}] {case_name}: provider_id expected {expected['provider_id']}, "
-                f"got {manifest.get('id')}"
-            )
-        if "protocol_version" in expected:
-            assert manifest.get("protocol_version") == expected["protocol_version"], (
-                f"[{case_id}] {case_name}: protocol_version expected {expected['protocol_version']}, "
-                f"got {manifest.get('protocol_version')}"
-            )
-    else:
-        # For invalid manifests, ensure at least one required field is missing.
-        missing_required = []
-        if not manifest.get("id"):
-            missing_required.append("id")
-        if not manifest.get("protocol_version"):
-            missing_required.append("protocol_version")
-        endpoint = manifest.get("endpoint")
-        if not isinstance(endpoint, dict) or not endpoint.get("base_url"):
-            missing_required.append("endpoint.base_url")
-        assert missing_required or cp_errors, (
-            f"[{case_id}] {case_name}: expected invalid manifest to fail required-shape or IOS checks"
-        )
 
 
 def _compliance_remote_error(error: dict[str, Any]) -> Any:
@@ -860,17 +827,23 @@ def run_message_building(
     expected: dict[str, Any],
     case: dict[str, Any],
 ) -> None:
-    """Run message_building test."""
+    """Run message_building test via production compliance normalizer."""
+    from ai_lib_python.pipeline.compliance import compliance_normalize_message_body
+
     case_id = case.get("id", "unknown")
     case_name = case.get("name", "unnamed")
     messages = input_data.get("messages") or []
+    normalized_body = compliance_normalize_message_body(messages)
     expected_body = expected.get("normalized_body") or {}
     expected_messages = expected_body.get("messages") or []
     expected_count = int(expected.get("message_count", len(expected_messages)))
 
-    assert messages == expected_messages, f"[{case_id}] {case_name}: normalized messages mismatch"
-    assert len(messages) == expected_count, (
-        f"[{case_id}] {case_name}: message_count expected {expected_count}, got {len(messages)}"
+    assert normalized_body.get("messages") == expected_messages, (
+        f"[{case_id}] {case_name}: normalized messages mismatch"
+    )
+    assert len(normalized_body.get("messages") or []) == expected_count, (
+        f"[{case_id}] {case_name}: message_count expected {expected_count}, "
+        f"got {len(normalized_body.get('messages') or [])}"
     )
 
 

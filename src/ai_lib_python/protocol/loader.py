@@ -201,6 +201,10 @@ class ProtocolLoader:
             protocol_path=str(path),
         )
 
+    def load_file(self, path: str | Path) -> dict[str, Any]:
+        """Load and parse a manifest file from an explicit path."""
+        return self._load_file(Path(path))
+
     async def load_provider(self, provider_id: str) -> ProtocolManifest:
         """Load a provider manifest.
 
