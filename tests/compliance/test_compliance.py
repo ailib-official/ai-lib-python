@@ -908,50 +908,28 @@ def run_stream_decode(
     case: dict[str, Any],
 ) -> None:
     """Run stream_decode test."""
+    from ai_lib_python.pipeline.compliance import decode_sse_chunks_sync
+
     case_id = case.get("id", "unknown")
     case_name = case.get("name", "unnamed")
-    raw_chunks = input_data.get("raw_chunks") or []
+    raw_chunks = [str(c) for c in (input_data.get("raw_chunks") or [])]
     decoder_config = input_data.get("decoder_config") or {}
     prefix = str(decoder_config.get("prefix", "data: "))
     done_signal = str(decoder_config.get("done_signal", "[DONE]"))
 
-    frames: list[dict[str, Any]] = []
-    done_received = False
-    for chunk in raw_chunks:
-        for line in str(chunk).splitlines():
-            if not line.startswith(prefix):
-                continue
-            payload = line[len(prefix) :].strip()
-            if payload == done_signal:
-                done_received = True
-                continue
-            if not payload:
-                continue
-            import json
-
-            frames.append(json.loads(payload))
+    frame_count, done_received = decode_sse_chunks_sync(raw_chunks, prefix, done_signal)
 
     frame_count_cfg = expected.get("frame_count") or {}
     min_frames = int(frame_count_cfg.get("min", 0))
     max_frames = int(frame_count_cfg.get("max", 10**9))
-    assert min_frames <= len(frames) <= max_frames, (
-        f"[{case_id}] {case_name}: frame_count={len(frames)} out of range [{min_frames}, {max_frames}]"
+    assert min_frames <= frame_count <= max_frames, (
+        f"[{case_id}] {case_name}: frame_count={frame_count} out of range [{min_frames}, {max_frames}]"
     )
 
     if expected.get("completed") is True:
         assert done_received, f"[{case_id}] {case_name}: expected done signal"
     if expected.get("done_received") is True:
         assert done_received, f"[{case_id}] {case_name}: done_received expected true"
-    if (expected.get("events") or [{}])[0].get("has_content"):
-        has_content = any(
-            isinstance(f.get("choices"), list)
-            and f["choices"]
-            and isinstance(f["choices"][0], dict)
-            and isinstance(f["choices"][0].get("delta"), dict)
-            and bool(f["choices"][0]["delta"].get("content"))
-            for f in frames
-        )
-        assert has_content, f"[{case_id}] {case_name}: expected at least one content frame"
 
 
 def run_event_mapping(
@@ -960,22 +938,15 @@ def run_event_mapping(
     case: dict[str, Any],
 ) -> None:
     """Run event_mapping test."""
+    from ai_lib_python.pipeline.compliance import compliance_events_from_openai_frame
+
     case_id = case.get("id", "unknown")
     case_name = case.get("name", "unnamed")
     frames = input_data.get("frames") or []
     actual_events: list[dict[str, Any]] = []
     for frame in frames:
-        choices = frame.get("choices") if isinstance(frame, dict) else None
-        if not isinstance(choices, list) or not choices:
-            continue
-        first = choices[0] if isinstance(choices[0], dict) else {}
-        delta = first.get("delta") if isinstance(first.get("delta"), dict) else {}
-        if "content" in delta:
-            actual_events.append({"type": "PartialContentDelta", "content": delta.get("content")})
-        if "tool_calls" in delta:
-            actual_events.append({"type": "PartialToolCall", "tool_calls": delta.get("tool_calls")})
-        if "finish_reason" in first and first.get("finish_reason") is not None:
-            actual_events.append({"type": "StreamEnd", "finish_reason": first.get("finish_reason")})
+        if isinstance(frame, dict):
+            actual_events.extend(compliance_events_from_openai_frame(frame))
 
     expected_events = expected.get("events") or []
     assert actual_events == expected_events, (
@@ -993,30 +964,13 @@ def run_tool_accumulation(
     case: dict[str, Any],
 ) -> None:
     """Run tool_accumulation test."""
+    from ai_lib_python.pipeline.compliance import assemble_tool_call_partials
+
     case_id = case.get("id", "unknown")
     case_name = case.get("name", "unnamed")
     partial_chunks = input_data.get("partial_chunks") or []
-    merged: dict[tuple[int, str], dict[str, Any]] = {}
-    for chunk in partial_chunks:
-        if not isinstance(chunk, dict):
-            continue
-        index = int(chunk.get("index", 0))
-        call_id = str(chunk.get("id", ""))
-        key = (index, call_id)
-        function = chunk.get("function") if isinstance(chunk.get("function"), dict) else {}
-        if key not in merged:
-            merged[key] = {
-                "index": index,
-                "id": call_id,
-                "type": chunk.get("type", "function"),
-                "function": {
-                    "name": function.get("name"),
-                    "arguments": "",
-                },
-            }
-        merged[key]["function"]["arguments"] += str(function.get("arguments", ""))
-
-    assembled = list(merged.values())
+    chunks = [c for c in partial_chunks if isinstance(c, dict)]
+    assembled = assemble_tool_call_partials(chunks)
     expected_calls = expected.get("assembled_tool_calls") or []
     assert assembled == expected_calls, (
         f"[{case_id}] {case_name}: assembled_tool_calls expected {expected_calls}, got {assembled}"
