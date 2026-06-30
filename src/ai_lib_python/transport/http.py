@@ -54,7 +54,9 @@ def _get_ua_version() -> str:
 
             _UA_VERSION = version("ai-lib-python")
         except Exception:
-            _UA_VERSION = "0.5.0"
+            from ai_lib_python._version import __version__
+
+            _UA_VERSION = __version__
     return _UA_VERSION
 
 

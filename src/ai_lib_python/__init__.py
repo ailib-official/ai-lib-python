@@ -17,6 +17,7 @@ from ai_lib_python._features import (
     HAS_WATCHDOG,
     require_extra,
 )
+from ai_lib_python._version import __version__
 from ai_lib_python.client import AiClient, AiClientBuilder, CallStats, ChatResponse
 from ai_lib_python.errors import AiLibError, ProtocolError, TransportError
 from ai_lib_python.types.events import StreamingEvent
@@ -27,8 +28,6 @@ from ai_lib_python.types.message import (
     MessageRole,
 )
 from ai_lib_python.types.tool import ToolCall, ToolDefinition
-
-__version__ = "0.7.5"
 
 __all__ = [
     # Client

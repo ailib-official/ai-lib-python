@@ -47,6 +47,9 @@ stt = []
 tts = []
 reranking = []
 
+# Policy-layer marker (routing, resilience, guardrails, batch, plugins, telemetry, …)
+contact = []
+
 # Infrastructure extras
 telemetry = [
     "opentelemetry-api>=1.20",
@@ -59,7 +62,7 @@ tokenizer = ["tiktoken>=0.5"]
 full = [
     "watchdog>=3.0",
     "keyring>=24.0",
-    "ai-lib-python[vision,audio,embeddings,structured,batch,agentic,stt,tts,reranking,telemetry,tokenizer]",
+    "ai-lib-python[contact,vision,audio,embeddings,structured,batch,agentic,stt,tts,reranking,telemetry,tokenizer]",
 ]
 jupyter = ["ipywidgets>=8.0"]
 dev = [
