@@ -645,7 +645,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mypy strict mode
 - ruff linting
 
-[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.5...HEAD
+[0.8.5]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.4...v0.8.5
+[0.8.4]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.3...v0.8.4
 [0.8.1]: https://github.com/ailib-official/ai-lib-python/releases/tag/v0.8.1
 [0.8.0]: https://github.com/ailib-official/ai-lib-python/releases/tag/v0.8.0
 [0.7.0]: https://github.com/ailib-official/ai-lib-python/releases/tag/v0.7.0

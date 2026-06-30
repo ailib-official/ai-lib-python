@@ -298,9 +298,9 @@ print(f"tokens: {response.usage}")
 ### Telemetry Feedback (opt-in)
 
 ```python
-from ai_lib_python.telemetry import FeedbackEvent, ChoiceSelectionFeedback
+from ai_lib_python.telemetry import FeedbackEvent, ChoiceSelectionFeedback, report_feedback
 
-await client.report_feedback(
+await report_feedback(
     FeedbackEvent.ChoiceSelection(
         request_id=response.stats.request_id,
         chosen_index=0,
