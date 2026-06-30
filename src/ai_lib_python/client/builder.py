@@ -503,17 +503,27 @@ class ChatRequestBuilder:
             messages_payload.append(msg_dict)
 
         payload: dict[str, Any] = {
-            active_manifest.get_parameter_name("messages") if active_manifest else "messages": messages_payload,
+            active_manifest.get_parameter_name("messages")
+            if active_manifest
+            else "messages": messages_payload,
             "model": active_model,
         }
 
         # Add optional parameters
         if self._temperature is not None:
-            key = active_manifest.get_parameter_name("temperature") if active_manifest else "temperature"
+            key = (
+                active_manifest.get_parameter_name("temperature")
+                if active_manifest
+                else "temperature"
+            )
             payload[key] = self._temperature
 
         if self._max_tokens is not None:
-            key = active_manifest.get_parameter_name("max_tokens") if active_manifest else "max_tokens"
+            key = (
+                active_manifest.get_parameter_name("max_tokens")
+                if active_manifest
+                else "max_tokens"
+            )
             payload[key] = self._max_tokens
 
         if self._top_p is not None:
@@ -521,7 +531,9 @@ class ChatRequestBuilder:
             payload[key] = self._top_p
 
         if self._stop_sequences:
-            key = active_manifest.get_parameter_name("stop_sequences") if active_manifest else "stop"
+            key = (
+                active_manifest.get_parameter_name("stop_sequences") if active_manifest else "stop"
+            )
             payload[key] = self._stop_sequences
 
         if self._tools:
@@ -529,7 +541,11 @@ class ChatRequestBuilder:
             payload[key] = [t.model_dump(exclude_none=True) for t in self._tools]
 
         if self._tool_choice:
-            key = active_manifest.get_parameter_name("tool_choice") if active_manifest else "tool_choice"
+            key = (
+                active_manifest.get_parameter_name("tool_choice")
+                if active_manifest
+                else "tool_choice"
+            )
             if hasattr(self._tool_choice, "value"):
                 payload[key] = self._tool_choice.value
             else:
