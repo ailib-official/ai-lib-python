@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 import yaml
+from tests.compliance.conftest import COMPLIANCE_DIR, _compliance_ci_strict
 
 
 def _repo_root() -> Path:
@@ -22,9 +23,11 @@ def _repo_root() -> Path:
 
 
 def _module_matrix_path() -> Path:
-    # Match tests/compliance/conftest.py: two levels up from package root, then ai-protocol/
+    via_compliance = (COMPLIANCE_DIR / "ep-boundary" / "module-matrix.yaml").resolve()
+    if via_compliance.is_file():
+        return via_compliance
     root = _repo_root()
-    return (
+    fallback = (
         root
         / ".."
         / ".."
@@ -34,9 +37,13 @@ def _module_matrix_path() -> Path:
         / "ep-boundary"
         / "module-matrix.yaml"
     ).resolve()
+    return fallback
 
 
 def _check_ep_boundary_script() -> Path:
+    via_compliance = (COMPLIANCE_DIR / "ep-boundary" / "check_ep_boundary.py").resolve()
+    if via_compliance.is_file():
+        return via_compliance
     root = _repo_root()
     return (
         root
@@ -83,6 +90,8 @@ def _scan_tree(
 def test_execution_layer_packages_do_not_import_contact_modules() -> None:
     matrix_path = _module_matrix_path()
     if not matrix_path.is_file():
+        if _compliance_ci_strict():
+            pytest.fail(f"module-matrix.yaml not found: {matrix_path}")
         pytest.skip(f"module-matrix.yaml not found (need ai-protocol sibling): {matrix_path}")
 
     data: dict[str, Any] = yaml.safe_load(matrix_path.read_text(encoding="utf-8")) or {}
@@ -114,6 +123,8 @@ def test_check_ep_boundary_python_cli_ok() -> None:
     """Runs ai-protocol ep-boundary script (execution trees + client/ AST)."""
     script = _check_ep_boundary_script()
     if not script.is_file():
+        if _compliance_ci_strict():
+            pytest.fail(f"check_ep_boundary.py not found: {script}")
         pytest.skip(f"check_ep_boundary.py not found: {script}")
     root = _repo_root()
     proc = subprocess.run(

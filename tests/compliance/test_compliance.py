@@ -42,7 +42,11 @@ def discover_test_cases(compliance_dir: Path) -> list[dict[str, Any]]:
 
 def get_test_cases() -> list[dict[str, Any]]:
     """Get all test cases, parametrized for pytest."""
+    from tests.compliance.conftest import _compliance_ci_strict
+
     if not COMPLIANCE_DIR.exists():
+        if _compliance_ci_strict():
+            pytest.fail(f"COMPLIANCE_DIR does not exist: {COMPLIANCE_DIR}")
         return []
     subset = compliance_subset()
     return [c for c in discover_test_cases(COMPLIANCE_DIR) if case_matches_subset(c, subset)]
@@ -136,6 +140,10 @@ def test_compliance(case: dict[str, Any]) -> None:
     elif test_type == "text_tool_prompt":
         run_text_tool_prompt(input_data, expected, case)
     else:
+        from tests.compliance.conftest import _compliance_ci_strict
+
+        if _compliance_ci_strict():
+            pytest.fail(f"Test type '{test_type}' not yet implemented")
         pytest.skip(f"Test type '{test_type}' not yet implemented")
 
 
