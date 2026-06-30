@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ai_lib_python.pipeline.decode import SSEDecoder
 from ai_lib_python.utils.tool_call_assembler import ToolCallAssembler
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 def compliance_events_from_openai_frame(frame: dict[str, Any]) -> list[dict[str, Any]]:
@@ -43,7 +45,8 @@ def assemble_tool_call_partials(chunks: list[dict[str, Any]]) -> list[dict[str, 
     for chunk in chunks:
         index = int(chunk.get("index", 0))
         call_id = str(chunk.get("id", ""))
-        function = chunk.get("function") if isinstance(chunk.get("function"), dict) else {}
+        function_raw = chunk.get("function")
+        function = function_raw if isinstance(function_raw, dict) else {}
         name = str(function.get("name", ""))
         args = str(function.get("arguments", ""))
         key = (index, call_id)
