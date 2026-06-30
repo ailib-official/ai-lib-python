@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
     from ai_lib_python.client.core import AiClient
     from ai_lib_python.client.response import CallStats, ChatResponse
+    from ai_lib_python.protocol.manifest import ProtocolManifest
     from ai_lib_python.types.events import StreamingEvent
     from ai_lib_python.types.message import Message
     from ai_lib_python.types.tool import ToolChoice, ToolDefinition
