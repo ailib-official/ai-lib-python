@@ -562,14 +562,29 @@ def run_protocol_loading(
         )
 
 
-def _compute_retry_delay_ms(policy: dict[str, Any], attempt: int) -> int:
-    """Deterministic delay baseline for compliance validation."""
-    min_delay = int(policy.get("min_delay_ms", 1000))
-    max_delay = int(policy.get("max_delay_ms", 60_000))
-    # attempt in compliance cases is 1-based
-    exponent = max(0, attempt - 1)
-    delay = min_delay * (2**exponent)
-    return min(delay, max_delay)
+def _compliance_remote_error(error: dict[str, Any]) -> Any:
+    """Build RemoteError from compliance YAML error block."""
+    from ai_lib_python.errors import ErrorClass, RemoteError
+
+    error_name = str(error.get("error_name", "other"))
+    try:
+        error_class = ErrorClass(error_name)
+    except ValueError:
+        error_class = ErrorClass.OTHER
+    status_by_name = {
+        "rate_limited": 429,
+        "server_error": 500,
+        "overloaded": 503,
+        "invalid_request": 400,
+        "authentication": 401,
+        "timeout": 504,
+    }
+    return RemoteError(
+        message="compliance",
+        status_code=status_by_name.get(error_name, 500),
+        error_class=error_class,
+        retryable=bool(error.get("retryable", False)),
+    )
 
 
 def run_retry_decision(
@@ -577,24 +592,30 @@ def run_retry_decision(
     expected: dict[str, Any],
     case: dict[str, Any],
 ) -> None:
-    """Run retry_decision test."""
+    """Run retry_decision via production RetryPolicy (QA-python-004)."""
+    from ai_lib_python.resilience.retry import JitterStrategy, RetryConfig, RetryPolicy
+
     case_id = case.get("id", "unknown")
     case_name = case.get("name", "unnamed")
 
     error = input_data.get("error") or {}
-    policy = input_data.get("retry_policy") or {}
-    attempt = int(input_data.get("attempt", 1))
+    policy_raw = input_data.get("retry_policy") or {}
+    attempt = int(input_data.get("attempt", 1))  # compliance YAML is 1-based
 
-    max_retries = int(policy.get("max_retries", 0))
-    retry_on_error_code = {
-        str(item) for item in policy.get("retry_on_error_code", []) if isinstance(item, str)
-    }
+    config = RetryConfig.from_protocol(policy_raw)
+    config.jitter = JitterStrategy.NONE
+    retry_policy = RetryPolicy(config)
+
     error_name = str(error.get("error_name", ""))
-    retryable = bool(error.get("retryable", False))
+    retry_on_codes = {
+        str(item) for item in policy_raw.get("retry_on_error_code", []) if isinstance(item, str)
+    }
+    remote_err = _compliance_remote_error(error)
 
-    within_limit = attempt <= max_retries
-    matches_policy = error_name in retry_on_error_code
-    should_retry = within_limit and retryable and (matches_policy or not retry_on_error_code)
+    if retry_on_codes and error_name not in retry_on_codes:
+        should_retry = False
+    else:
+        should_retry = retry_policy.should_retry(remote_err, attempt - 1)
 
     expected_should_retry = bool(expected.get("should_retry", False))
     assert should_retry == expected_should_retry, (
@@ -603,7 +624,7 @@ def run_retry_decision(
 
     if expected_should_retry and "delay_ms" in expected:
         expected_delay = expected["delay_ms"]
-        delay_ms = _compute_retry_delay_ms(policy, attempt)
+        delay_ms = int(retry_policy.calculate_delay(attempt - 1) * 1000)
         if isinstance(expected_delay, dict):
             min_expected = int(expected_delay.get("min", 0))
             max_expected = int(expected_delay.get("max", 10**9))
@@ -1064,11 +1085,14 @@ def run_fallback_decision(
     expected: dict[str, Any],
     case: dict[str, Any],
 ) -> None:
-    """Run fallback_decision test."""
+    """Run fallback_decision via StandardErrorCode.fallbackable (QA-python-004)."""
+    from ai_lib_python.errors.standard_codes import STANDARD_ERROR_CODES
+
     case_id = case.get("id", "unknown")
     case_name = case.get("name", "unnamed")
     code = str(input_data.get("error_code", ""))
-    should_fallback = code in {"E1002", "E2001", "E2002", "E3001", "E3002", "E3003"}
+    sec = STANDARD_ERROR_CODES.get(code)
+    should_fallback = bool(sec.fallbackable) if sec is not None else False
     expected_value = bool(expected.get("should_fallback", False))
     assert should_fallback == expected_value, (
         f"[{case_id}] {case_name}: should_fallback expected {expected_value}, got {should_fallback}"

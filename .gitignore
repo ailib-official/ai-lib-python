@@ -1,4 +1,12 @@
-# Byte-compiled / optimized / DLL files
+# Internal ops / release reports (DOC-002) — not for public repo
+PYPI_*_REPORT.md
+PYPI_UPLOAD_STATUS.md
+RELEASE_INSTRUCTIONS_*.md
+RELEASE_COMPLETE_REPORT.md
+CODE_REVIEW_REPORT_*.md
+RELEASE_NOTES_V0.5.0.md
+ROUTING_MANAGER_REFACTORING_ASSESSMENT.md
+
 __pycache__/
 *.py[cod]
 *$py.class
