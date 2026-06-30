@@ -63,13 +63,13 @@ def _require_compliance_dir_in_ci() -> None:
         pytest.fail(f"COMPLIANCE_DIR does not exist: {COMPLIANCE_DIR}")
 
 
-def pytest_collection_modifyitems(session: pytest.Session, config: pytest.Config, items: list[pytest.Item]) -> None:
+def pytest_collection_modifyitems(
+    session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
+) -> None:
     """Ensure compliance matrix is non-empty when COMPLIANCE_DIR is set (QA-python-005)."""
     if not _compliance_ci_strict():
         return
-    compliance_items = [
-        i for i in items if getattr(i, "originalname", i.name) == "test_compliance"
-    ]
+    compliance_items = [i for i in items if getattr(i, "originalname", i.name) == "test_compliance"]
     subset = compliance_subset()
     min_cases = 8 if subset == "e_only" else 25
     if len(compliance_items) < min_cases:
