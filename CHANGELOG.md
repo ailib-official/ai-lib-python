@@ -7,16 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-07-01
+
+### Added
+
+- **`[contact]` extra** and `test_version_matches_pyproject` for release hygiene (ALP-R4).
+- Compliance runners call production APIs for protocol_loading, message_building, stream/event/tool, retry/fallback (PT-073g / ALP-QA-001).
+
+### Fixed
+
+- **PT-073g compliance:** fail-closed fixtures, EP boundary tests, concurrency-safe fallback payload (#7–#12).
+- **Version single-source:** `__version__` via `importlib.metadata`; README `report_feedback` example corrected (#13).
+- **DOC-002:** internal release reports gitignored; `.gitignore` hygiene (ALP-R5).
+- **CI:** pin `ailib-official/ai-protocol` checkout `ref: main` in workflows (#7).
+
+### Changed
+
+- **Release docs:** PyPI Trusted Publisher checklist (owner id `268981910`, workflow `release.yml`).
+
 ### Migration (E/P separation)
 
 - **Core-only (E):** `pip install ai-lib-python` — use `ai_lib_python.client`, protocol types, and compliance-covered execution modules.
 - **Policy (P):** optional extras `[contact]` / `[full]` for routing, resilience, guardrails, batch, plugins, telemetry, etc.
 - **Do not** statically import P-layer modules from E-only code paths; client loads optional resilience via `importlib` when configured.
 - **CI boundary:** `check_ep_boundary.py` + `tests/architecture/` (see ai-protocol `module-matrix.yaml`).
-
-### Fixed
-
-- **Release docs:** PyPI Trusted Publisher checklist documents required GitHub fields (including numeric owner id `268981910` for `ailib-official/ai-lib-python` and workflow file `release.yml`) to avoid Warehouse `invalid-publisher` lookups.
 
 ## [0.8.5] - 2026-05-07
 
@@ -645,7 +659,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mypy strict mode
 - ruff linting
 
-[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.5...HEAD
+[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.6...HEAD
+[0.8.6]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.3...v0.8.4
 [0.8.1]: https://github.com/ailib-official/ai-lib-python/releases/tag/v0.8.1
