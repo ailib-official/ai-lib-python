@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-01
+
+### Milestone
+
+- **Wave-5 v1.0.0**: E/P separation stable API; pins `ai-protocol` v1.0.0; PT-073g sign-off.
+
+### Changed
+
+- Semver **1.0.0** — backward-compatible evolution expected for 1.x per PT-073 policy.
+- Builds on 0.8.6 remediation (compliance, version single-source, `[contact]` extra).
+
 ## [0.8.6] - 2026-07-01
 
 ### Added
@@ -659,7 +670,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mypy strict mode
 - ruff linting
 
-[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.6...HEAD
+[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.6...v1.0.0
 [0.8.6]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.3...v0.8.4
