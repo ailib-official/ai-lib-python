@@ -52,7 +52,9 @@ def encode_blocks_for_gemini_contract(blocks: list[dict[str, Any]]) -> list[dict
     return encode_blocks_gemini(gemini_generate_contract(), blocks)
 
 
-def encode_blocks_for_api_style(api_style: str, blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def encode_blocks_for_api_style(
+    api_style: str, blocks: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     contract = contract_for_api_style(api_style)
     if api_style == "anthropic_messages":
         return encode_blocks_anthropic(contract, blocks)
@@ -61,7 +63,9 @@ def encode_blocks_for_api_style(api_style: str, blocks: list[dict[str, Any]]) ->
     raise ValueError(f"unsupported api_style: {api_style}")
 
 
-def _encode_anthropic_block(block: dict[str, Any], doc_mapping: DocumentBlockMapping) -> dict[str, Any]:
+def _encode_anthropic_block(
+    block: dict[str, Any], doc_mapping: DocumentBlockMapping
+) -> dict[str, Any]:
     block_type = str(block.get("block_type", "text"))
     if block_type == "text":
         return {"type": "text", "text": str(block.get("text", ""))}
@@ -94,7 +98,9 @@ def _encode_anthropic_document(
     }
 
 
-def _encode_gemini_block(block: dict[str, Any], doc_mapping: DocumentBlockMapping) -> dict[str, Any]:
+def _encode_gemini_block(
+    block: dict[str, Any], doc_mapping: DocumentBlockMapping
+) -> dict[str, Any]:
     block_type = str(block.get("block_type", "text"))
     if block_type == "text":
         return {"text": str(block.get("text", ""))}
@@ -108,7 +114,9 @@ def _encode_gemini_document(block: dict[str, Any], mapping: DocumentBlockMapping
         raise ValueError(f"unsupported document format for Gemini: {mapping.format}")
     source_type = str(block.get("source_type", "base64"))
     if source_type == "ref" and mapping.rejects_ref_before_encode():
-        raise ValueError("Gemini document blocks require base64 inline data; resolve ref before send")
+        raise ValueError(
+            "Gemini document blocks require base64 inline data; resolve ref before send"
+        )
     if source_type != "base64":
         raise ValueError(f"unsupported document source_type: {source_type}")
     return {
