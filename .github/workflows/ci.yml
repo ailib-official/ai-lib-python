@@ -1,4 +1,4 @@
-# PyPI / GitHub Release: see `.github/workflows/release.yml` (Trusted Publisher â†’ workflow file **release.yml**).
+# PyPI / GitHub Release: see `.github/workflows/release.yml` (Trusted Publisher â†?workflow file **release.yml**).
 #
 # Optional legacy: repository secret `PYPI_API_TOKEN` (never paste tokens in chat or commits).
 name: CI
@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ailib-official/ai-protocol
-          ref: main
+          ref: v1.0.0
           path: ai-protocol
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -163,7 +163,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ailib-official/ai-protocol
-          ref: main
+          ref: v1.0.0
           path: ai-protocol
 
       - name: Set up Python
