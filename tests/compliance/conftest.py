@@ -19,6 +19,8 @@ _E_ONLY_CASE_PREFIXES = (
     "cases/07-advanced-capabilities/",
     "cases/08-generative-capabilities/",
     "cases/09-credential-resolution/",
+    "cases/10-text-tool-call/",
+    "cases/11-content-block-encoding/",
 )
 
 

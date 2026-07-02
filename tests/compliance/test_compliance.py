@@ -747,15 +747,17 @@ def run_content_block_encode(
     expected: dict[str, Any],
     case: dict[str, Any],
 ) -> None:
-    """Run content_block_encode (ALR-DOC-002 parity; production module pending)."""
+    """Run content_block_encode via production manifest encoder (ALP-DOC-001)."""
     case_id = case.get("id", "unknown")
     case_name = case.get("name", "unnamed")
     api_style = input_data.get("api_style")
     blocks = input_data.get("blocks") or []
     expect_error = bool(input_data.get("expect_error"))
 
+    from ai_lib_python.types.manifest_encode import encode_blocks_for_api_style
+
     try:
-        encoded = _encode_content_blocks(str(api_style), blocks)
+        encoded = encode_blocks_for_api_style(str(api_style), blocks)
     except ValueError as exc:
         if expect_error:
             return
@@ -768,58 +770,6 @@ def run_content_block_encode(
         f"[{case_id}] {case_name}: encoded mismatch\n  got: {encoded!r}\n  "
         f"expected: {expected.get('encoded')!r}"
     )
-
-
-def _encode_content_blocks(api_style: str, blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if api_style == "anthropic_messages":
-        return [_encode_anthropic_block(b) for b in blocks]
-    if api_style == "gemini_generate":
-        return [_encode_gemini_block(b) for b in blocks]
-    raise ValueError(f"unsupported api_style: {api_style}")
-
-
-def _encode_anthropic_block(block: dict[str, Any]) -> dict[str, Any]:
-    block_type = str(block.get("block_type", "text"))
-    if block_type == "text":
-        return {"type": "text", "text": str(block.get("text", ""))}
-    if block_type != "document":
-        raise ValueError(f"unsupported block_type: {block_type}")
-    source_type = str(block.get("source_type", "base64"))
-    if source_type == "ref":
-        raise ValueError(
-            "document ref must be resolved to base64 or url before sending to Anthropic"
-        )
-    if source_type != "base64":
-        raise ValueError(f"unsupported document source_type: {source_type}")
-    return {
-        "type": "document",
-        "source": {
-            "type": "base64",
-            "media_type": str(block.get("mime_type", "application/pdf")),
-            "data": str(block.get("data", "")),
-        },
-    }
-
-
-def _encode_gemini_block(block: dict[str, Any]) -> dict[str, Any]:
-    block_type = str(block.get("block_type", "text"))
-    if block_type == "text":
-        return {"text": str(block.get("text", ""))}
-    if block_type != "document":
-        raise ValueError(f"unsupported block_type: {block_type}")
-    source_type = str(block.get("source_type", "base64"))
-    if source_type == "ref":
-        raise ValueError(
-            "Gemini document blocks require base64 inline data; resolve ref before send"
-        )
-    if source_type != "base64":
-        raise ValueError(f"unsupported document source_type: {source_type}")
-    return {
-        "inlineData": {
-            "mimeType": str(block.get("mime_type", "application/pdf")),
-            "data": str(block.get("data", "")),
-        }
-    }
 
 
 def run_message_building(
