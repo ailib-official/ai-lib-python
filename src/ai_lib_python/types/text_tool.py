@@ -23,6 +23,15 @@ class PromptLevel(str, Enum):
     L3 = "L3"
 
 
+class TextToolDeviation(str, Enum):
+    """Observed text-tool markup categories (align with ai-protocol format.yaml)."""
+
+    STANDARD_TOOL_CALL = "standard_tool_call"
+    SHELL = "shell"
+    BASH = "bash"
+    DSML = "dsml"
+
+
 @dataclass
 class TextToolConfig:
     """Configuration for text tool call parsing and prompt generation."""
@@ -68,6 +77,68 @@ _SHELL_DIALECT_RE = re.compile(r"(?s)<shell>\s*<command>(.*?)</command>\s*</shel
 _BASH_DIALECT_RE = re.compile(r"(?s)<bash>(.*?)</bash>")
 _OUTER_WRAPPER_RE = re.compile(r"(?s)<tool_calls>\s*(.*?)\s*</tool_calls>")
 _NAME_ATTR_RE = re.compile(r'name="([^"]+)"')
+# DeepSeek DSML: U+FF5C fullwidth vertical line delimiter (see _DSML_TAG)
+_DSML_TAG = "\uff5c\uff5cDSML\uff5c\uff5c"
+_DSML_INVOKE_RE = re.compile(
+    rf"(?s)<{_DSML_TAG}invoke\s+name=\"([^\"]+)\">(.*?)</{_DSML_TAG}invoke>"
+)
+_DSML_PARAMETER_RE = re.compile(
+    rf"(?s)<{_DSML_TAG}parameter\s+name=\"([^\"]+)\"[^>]*>(.*?)</{_DSML_TAG}parameter>"
+)
+_DSML_WRAPPER_RE = re.compile(rf"(?s)<{_DSML_TAG}tool_calls>\s*(.*?)\s*</{_DSML_TAG}tool_calls>")
+
+
+def detect_text_tool_deviation(text: str) -> TextToolDeviation | None:
+    """Detect the first recognizable text-tool markup in LLM output."""
+    if _DSML_TAG in text:
+        return TextToolDeviation.DSML
+    if _SHELL_DIALECT_RE.search(text):
+        return TextToolDeviation.SHELL
+    if _BASH_DIALECT_RE.search(text):
+        return TextToolDeviation.BASH
+    if _TOOL_CALL_BLOCK_RE.search(text):
+        return TextToolDeviation.STANDARD_TOOL_CALL
+    return None
+
+
+def parse_hybrid_tool_calls(
+    parser: TextToolParser,
+    content: str,
+    native_calls: list[TextParsedToolCall],
+) -> tuple[str, list[TextParsedToolCall]]:
+    """Prefer native structured calls; fall back to lenient text parse when empty."""
+    if native_calls:
+        return content, list(native_calls)
+    return parser.parse(content)
+
+
+def _parse_dsml_dialect(text: str) -> tuple[list[TextParsedToolCall], list[tuple[int, int]]]:
+    tool_calls: list[TextParsedToolCall] = []
+    spans_to_remove: list[tuple[int, int]] = []
+
+    for match in _DSML_INVOKE_RE.finditer(text):
+        tool_name = (match.group(1) or "").strip()
+        if not tool_name:
+            continue
+        body = match.group(2) or ""
+        arguments: dict[str, Any] = {}
+        for param in _DSML_PARAMETER_RE.finditer(body):
+            key = param.group(1) or ""
+            value = (param.group(2) or "").strip()
+            if key:
+                arguments[key] = value
+        idx = len(tool_calls)
+        tool_calls.append(
+            TextParsedToolCall(id=f"text_tool_{idx}", name=tool_name, arguments=arguments)
+        )
+        spans_to_remove.append((match.start(), match.end()))
+
+    if tool_calls:
+        wrapper = _DSML_WRAPPER_RE.search(text)
+        if wrapper:
+            spans_to_remove = [(wrapper.start(), wrapper.end())]
+
+    return tool_calls, spans_to_remove
 
 
 def _unwrap_tool_calls_wrapper(text: str) -> str:
@@ -136,21 +207,28 @@ def _parse_text_tool_calls(
         spans_to_remove.append((match.start(), match.end()))
 
     if config.lenient_parsing and not tool_calls:
-        shell_match = _SHELL_DIALECT_RE.search(remaining)
-        if shell_match:
-            cmd = (shell_match.group(1) or "").strip()
-            tool_calls.append(
-                TextParsedToolCall(id="text_tool_0", name="shell", arguments={"command": cmd})
-            )
-            spans_to_remove.append((shell_match.start(), shell_match.end()))
+        dsml_calls, dsml_spans = _parse_dsml_dialect(remaining)
+        if dsml_calls:
+            tool_calls.extend(dsml_calls)
+            spans_to_remove.extend(dsml_spans)
         else:
-            bash_match = _BASH_DIALECT_RE.search(remaining)
-            if bash_match:
-                cmd = (bash_match.group(1) or "").strip()
+            shell_match = _SHELL_DIALECT_RE.search(remaining)
+            if shell_match:
+                cmd = (shell_match.group(1) or "").strip()
                 tool_calls.append(
                     TextParsedToolCall(id="text_tool_0", name="shell", arguments={"command": cmd})
                 )
-                spans_to_remove.append((bash_match.start(), bash_match.end()))
+                spans_to_remove.append((shell_match.start(), shell_match.end()))
+            else:
+                bash_match = _BASH_DIALECT_RE.search(remaining)
+                if bash_match:
+                    cmd = (bash_match.group(1) or "").strip()
+                    tool_calls.append(
+                        TextParsedToolCall(
+                            id="text_tool_0", name="shell", arguments={"command": cmd}
+                        )
+                    )
+                    spans_to_remove.append((bash_match.start(), bash_match.end()))
 
     chars = list(remaining)
     for start, end in sorted(spans_to_remove, key=lambda x: x[0], reverse=True):
