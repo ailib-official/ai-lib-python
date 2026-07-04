@@ -137,6 +137,8 @@ def test_compliance(case: dict[str, Any]) -> None:
         run_auth_attachment(input_data, expected, case)
     elif test_type == "text_tool_parse":
         run_text_tool_parse(input_data, expected, case)
+    elif test_type == "text_tool_hybrid":
+        run_text_tool_hybrid(input_data, expected, case)
     elif test_type == "text_tool_prompt":
         run_text_tool_prompt(input_data, expected, case)
     elif test_type == "capability_check":
@@ -1034,6 +1036,59 @@ def run_text_tool_parse(
         config=TextToolConfig(lenient_parsing=bool(config_data.get("lenient_parsing", False)))
     )
     remaining, calls = parser.parse(str(response_text))
+
+    if "remaining_text" in expected:
+        exp = str(expected["remaining_text"]).strip()
+        assert remaining.strip() == exp, (
+            f"[{case_id}] {case_name}: remaining_text expected {exp!r}, got {remaining.strip()!r}"
+        )
+
+    expected_calls = expected.get("tool_calls") or []
+    assert len(calls) == len(expected_calls), (
+        f"[{case_id}] {case_name}: tool_calls count expected {len(expected_calls)}, got {len(calls)}"
+    )
+    for i, (actual, exp_call) in enumerate(zip(calls, expected_calls, strict=True)):
+        assert actual.name == exp_call.get("name"), (
+            f"[{case_id}] tool_calls[{i}].name expected {exp_call.get('name')}, got {actual.name}"
+        )
+        if "arguments" in exp_call:
+            assert actual.arguments == exp_call["arguments"], (
+                f"[{case_id}] tool_calls[{i}].arguments expected {exp_call['arguments']}, "
+                f"got {actual.arguments}"
+            )
+
+
+def run_text_tool_hybrid(
+    input_data: dict[str, Any],
+    expected: dict[str, Any],
+    case: dict[str, Any],
+) -> None:
+    """Run text_tool_hybrid compliance test (parse_hybrid_tool_calls)."""
+    from ai_lib_python.types.text_tool import (
+        StandardTextToolParser,
+        TextParsedToolCall,
+        TextToolConfig,
+        parse_hybrid_tool_calls,
+    )
+
+    case_id = case.get("id", "unknown")
+    case_name = case.get("name", "unnamed")
+    content = str(input_data.get("content", ""))
+    config_data = input_data.get("config") or {}
+    parser = StandardTextToolParser(
+        config=TextToolConfig(lenient_parsing=bool(config_data.get("lenient_parsing", True)))
+    )
+    native_raw = input_data.get("native_tool_calls") or []
+    native_calls = [
+        TextParsedToolCall(
+            id=str(item.get("id", "")),
+            name=str(item.get("name", "")),
+            arguments=dict(item.get("arguments") or {}),
+        )
+        for item in native_raw
+        if isinstance(item, dict)
+    ]
+    remaining, calls = parse_hybrid_tool_calls(parser, content, native_calls)
 
     if "remaining_text" in expected:
         exp = str(expected["remaining_text"]).strip()
