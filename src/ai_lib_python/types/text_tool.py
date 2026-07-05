@@ -23,6 +23,14 @@ class PromptLevel(str, Enum):
     L3 = "L3"
 
 
+class NativeStrategy(str, Enum):
+    """Native tool-calling strategy derived from manifest ``tool_calling``."""
+
+    FULL = "full"
+    HYBRID = "hybrid"
+    TEXT_ONLY = "text_only"
+
+
 class TextToolDeviation(str, Enum):
     """Observed text-tool markup categories (align with ai-protocol format.yaml)."""
 
@@ -30,6 +38,14 @@ class TextToolDeviation(str, Enum):
     SHELL = "shell"
     BASH = "bash"
     DSML = "dsml"
+
+
+@dataclass
+class KnownDialect:
+    """Manifest ``known_dialects`` entry: XML tag → tool name."""
+
+    tag: str
+    map_to: str = ""
 
 
 @dataclass
@@ -42,6 +58,7 @@ class TextToolConfig:
     prompt_level: PromptLevel = PromptLevel.L1
     locale: str = "en"
     args_key: str | None = None
+    dialects: list[KnownDialect] = field(default_factory=list)
 
 
 @dataclass
@@ -74,6 +91,7 @@ class TextToolParser(Protocol):
 
 _TOOL_CALL_BLOCK_RE = re.compile(r"(?s)<tool_call(?:\s+[^>]*)?>(.*?)</tool_call>")
 _SHELL_DIALECT_RE = re.compile(r"(?s)<shell>\s*<command>(.*?)</command>\s*</shell>")
+_SHELL_PLAIN_BODY_RE = re.compile(r"(?s)<shell>\s*(.*?)\s*</shell>")
 _BASH_DIALECT_RE = re.compile(r"(?s)<bash>(.*?)</bash>")
 _OUTER_WRAPPER_RE = re.compile(r"(?s)<tool_calls>\s*(.*?)\s*</tool_calls>")
 _NAME_ATTR_RE = re.compile(r'name="([^"]+)"')
@@ -88,11 +106,41 @@ _DSML_PARAMETER_RE = re.compile(
 _DSML_WRAPPER_RE = re.compile(rf"(?s)<{_DSML_TAG}tool_calls>\s*(.*?)\s*</{_DSML_TAG}tool_calls>")
 
 
+def _default_lenient_parser() -> StandardTextToolParser:
+    return StandardTextToolParser(
+        config=TextToolConfig(
+            lenient_parsing=True,
+            prompt_level=PromptLevel.L2,
+            include_counterexamples=True,
+        )
+    )
+
+
+def _infer_native_strategy(tool_calling: dict[str, Any]) -> NativeStrategy:
+    native = tool_calling.get("native") or {}
+    native_supported = bool(native.get("supported", False))
+    if not native_supported:
+        return NativeStrategy.TEXT_ONLY
+
+    reliability = str(native.get("reliability", "unreliable"))
+    has_text_fallback = tool_calling.get("text_fallback") is not None
+
+    if reliability == "full":
+        return NativeStrategy.FULL
+    if reliability == "partial" and has_text_fallback:
+        return NativeStrategy.HYBRID
+    if reliability == "partial":
+        return NativeStrategy.FULL
+    if has_text_fallback:
+        return NativeStrategy.TEXT_ONLY
+    return NativeStrategy.FULL
+
+
 def detect_text_tool_deviation(text: str) -> TextToolDeviation | None:
     """Detect the first recognizable text-tool markup in LLM output."""
     if _DSML_TAG in text:
         return TextToolDeviation.DSML
-    if _SHELL_DIALECT_RE.search(text):
+    if _SHELL_DIALECT_RE.search(text) or _SHELL_PLAIN_BODY_RE.search(text):
         return TextToolDeviation.SHELL
     if _BASH_DIALECT_RE.search(text):
         return TextToolDeviation.BASH
@@ -110,6 +158,55 @@ def parse_hybrid_tool_calls(
     if native_calls:
         return content, list(native_calls)
     return parser.parse(content)
+
+
+def _shell_tool_call(command: str, map_to: str, idx: int) -> TextParsedToolCall:
+    name = "shell" if not map_to else map_to
+    return TextParsedToolCall(
+        id=f"text_tool_{idx}",
+        name=name,
+        arguments={"command": command},
+    )
+
+
+def _try_parse_configured_dialects(
+    text: str, dialects: list[KnownDialect]
+) -> tuple[TextParsedToolCall, tuple[int, int]] | None:
+    for dialect in dialects:
+        if dialect.tag == "shell":
+            match = _SHELL_DIALECT_RE.search(text)
+            if match:
+                cmd = (match.group(1) or "").strip()
+                return _shell_tool_call(cmd, dialect.map_to, 0), (match.start(), match.end())
+            plain = _SHELL_PLAIN_BODY_RE.search(text)
+            if plain:
+                body = (plain.group(1) or "").strip()
+                if body.startswith("<command>"):
+                    continue
+                return _shell_tool_call(body, dialect.map_to, 0), (plain.start(), plain.end())
+        elif dialect.tag == "bash":
+            match = _BASH_DIALECT_RE.search(text)
+            if match:
+                cmd = (match.group(1) or "").strip()
+                return _shell_tool_call(cmd, dialect.map_to, 0), (match.start(), match.end())
+    return None
+
+
+def _try_parse_legacy_dialects(text: str) -> tuple[TextParsedToolCall, tuple[int, int]] | None:
+    match = _SHELL_DIALECT_RE.search(text)
+    if match:
+        cmd = (match.group(1) or "").strip()
+        return _shell_tool_call(cmd, "shell", 0), (match.start(), match.end())
+    plain = _SHELL_PLAIN_BODY_RE.search(text)
+    if plain:
+        body = (plain.group(1) or "").strip()
+        if not body.startswith("<command>"):
+            return _shell_tool_call(body, "shell", 0), (plain.start(), plain.end())
+    bash = _BASH_DIALECT_RE.search(text)
+    if bash:
+        cmd = (bash.group(1) or "").strip()
+        return _shell_tool_call(cmd, "shell", 0), (bash.start(), bash.end())
+    return None
 
 
 def _parse_dsml_dialect(text: str) -> tuple[list[TextParsedToolCall], list[tuple[int, int]]]:
@@ -212,23 +309,15 @@ def _parse_text_tool_calls(
             tool_calls.extend(dsml_calls)
             spans_to_remove.extend(dsml_spans)
         else:
-            shell_match = _SHELL_DIALECT_RE.search(remaining)
-            if shell_match:
-                cmd = (shell_match.group(1) or "").strip()
-                tool_calls.append(
-                    TextParsedToolCall(id="text_tool_0", name="shell", arguments={"command": cmd})
-                )
-                spans_to_remove.append((shell_match.start(), shell_match.end()))
-            else:
-                bash_match = _BASH_DIALECT_RE.search(remaining)
-                if bash_match:
-                    cmd = (bash_match.group(1) or "").strip()
-                    tool_calls.append(
-                        TextParsedToolCall(
-                            id="text_tool_0", name="shell", arguments={"command": cmd}
-                        )
-                    )
-                    spans_to_remove.append((bash_match.start(), bash_match.end()))
+            dialect_result = (
+                _try_parse_configured_dialects(remaining, config.dialects)
+                if config.dialects
+                else _try_parse_legacy_dialects(remaining)
+            )
+            if dialect_result:
+                call, span = dialect_result
+                tool_calls.append(call)
+                spans_to_remove.append(span)
 
     chars = list(remaining)
     for start, end in sorted(spans_to_remove, key=lambda x: x[0], reverse=True):
@@ -313,15 +402,56 @@ class StandardTextToolParser:
     @classmethod
     def from_manifest_tool_calling(cls, tool_calling: dict[str, Any]) -> StandardTextToolParser:
         config = TextToolConfig(lenient_parsing=True, prompt_level=PromptLevel.L2)
-        fallback = tool_calling.get("text_fallback") or {}
-        level = str(fallback.get("prompt_level", "L2")).upper()
-        config.prompt_level = (
-            PromptLevel(level) if level in PromptLevel.__members__ else PromptLevel.L2
-        )
-        if isinstance(fallback.get("args_key"), str):
-            config.args_key = fallback["args_key"]
-        config.include_counterexamples = config.prompt_level != PromptLevel.L1
+        fallback = tool_calling.get("text_fallback")
+        if fallback is not None and fallback is not False:
+            if not isinstance(fallback, dict):
+                fallback = {}
+            level = str(fallback.get("prompt_level", "L2")).upper()
+            config.prompt_level = (
+                PromptLevel(level) if level in PromptLevel.__members__ else PromptLevel.L2
+            )
+            if isinstance(fallback.get("args_key"), str):
+                config.args_key = fallback["args_key"]
+            known = fallback.get("known_dialects")
+            if isinstance(known, list):
+                for entry in known:
+                    if not isinstance(entry, dict):
+                        continue
+                    tag = entry.get("tag")
+                    if not isinstance(tag, str) or not tag:
+                        continue
+                    map_to = entry.get("map_to")
+                    config.dialects.append(
+                        KnownDialect(tag=tag, map_to=map_to if isinstance(map_to, str) else "")
+                    )
+            config.include_counterexamples = config.prompt_level != PromptLevel.L1
         native = tool_calling.get("native") or {}
         if native.get("reliability") == "full":
             config.lenient_parsing = False
         return cls(config=config)
+
+
+@dataclass
+class ToolCallingPolicy:
+    """Runtime policy: dispatcher selection + manifest-backed parser."""
+
+    native_strategy: NativeStrategy
+    parser: StandardTextToolParser
+
+    @classmethod
+    def from_tool_calling(cls, tool_calling: dict[str, Any] | None) -> ToolCallingPolicy:
+        parser = (
+            StandardTextToolParser.from_manifest_tool_calling(tool_calling)
+            if tool_calling is not None
+            else _default_lenient_parser()
+        )
+        strategy = (
+            _infer_native_strategy(tool_calling) if tool_calling is not None else NativeStrategy.TEXT_ONLY
+        )
+        return cls(native_strategy=strategy, parser=parser)
+
+    def send_native_tool_specs(self) -> bool:
+        return self.native_strategy in (NativeStrategy.FULL, NativeStrategy.HYBRID)
+
+    def prefer_native_dispatcher(self) -> bool:
+        return self.send_native_tool_specs()
