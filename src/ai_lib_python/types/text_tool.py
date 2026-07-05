@@ -161,7 +161,7 @@ def parse_hybrid_tool_calls(
 
 
 def _shell_tool_call(command: str, map_to: str, idx: int) -> TextParsedToolCall:
-    name = "shell" if not map_to else map_to
+    name = map_to if map_to else "shell"
     return TextParsedToolCall(
         id=f"text_tool_{idx}",
         name=name,
