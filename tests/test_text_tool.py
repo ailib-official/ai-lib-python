@@ -84,9 +84,7 @@ def test_prompt_l2_contains_counterexamples() -> None:
 
 
 def test_lenient_plain_shell_body_dialect() -> None:
-    text = (
-        '让我检查一下。\n<shell>\nwhich opencode 2>/dev/null || echo "not found"\n</shell>'
-    )
+    text = '让我检查一下。\n<shell>\nwhich opencode 2>/dev/null || echo "not found"\n</shell>'
     parser = StandardTextToolParser.from_manifest_tool_calling(
         {
             "native": {"supported": True, "reliability": "partial"},

@@ -446,7 +446,9 @@ class ToolCallingPolicy:
             else _default_lenient_parser()
         )
         strategy = (
-            _infer_native_strategy(tool_calling) if tool_calling is not None else NativeStrategy.TEXT_ONLY
+            _infer_native_strategy(tool_calling)
+            if tool_calling is not None
+            else NativeStrategy.TEXT_ONLY
         )
         return cls(native_strategy=strategy, parser=parser)
 
