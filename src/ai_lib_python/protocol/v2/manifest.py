@@ -271,6 +271,13 @@ class ManifestV2(BaseModel):
             cap = Capability(cap)
         return self.capabilities.has_capability(cap)
 
+    def tool_calling(self) -> dict[str, Any] | None:
+        """Unified ``tool_calling`` block: V2 nests under ``capabilities``; root may land in extra."""
+        if self.capabilities.tool_calling is not None:
+            return self.capabilities.tool_calling
+        root = (self.model_extra or {}).get("tool_calling")
+        return root if isinstance(root, dict) else None
+
     def mcp_client_supported(self) -> bool:
         """Whether MCP client is supported by this provider."""
         return self.mcp is not None and self.mcp.supported

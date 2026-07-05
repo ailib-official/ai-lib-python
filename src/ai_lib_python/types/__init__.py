@@ -22,11 +22,14 @@ from ai_lib_python.types.message import (
     MessageRole,
 )
 from ai_lib_python.types.text_tool import (
+    KnownDialect,
+    NativeStrategy,
     PromptLevel,
     StandardTextToolParser,
     TextParsedToolCall,
     TextToolConfig,
     TextToolResult,
+    ToolCallingPolicy,
 )
 from ai_lib_python.types.tool import (
     FunctionDefinition,
@@ -50,10 +53,13 @@ __all__ = [
     # Event types
     "StreamingEvent",
     "PromptLevel",
+    "KnownDialect",
+    "NativeStrategy",
     "StandardTextToolParser",
     "TextParsedToolCall",
     "TextToolConfig",
     "TextToolResult",
+    "ToolCallingPolicy",
     "ToolCall",
     "ToolChoice",
     # Tool types

@@ -158,6 +158,8 @@ class CapabilitiesV2(BaseModel):
     required: list[Capability] = Field(default_factory=lambda: [Capability.TEXT])
     optional: list[Capability] = Field(default_factory=list)
     feature_flags: FeatureFlags = Field(default_factory=FeatureFlags)
+    # VL-TTC manifest block (R0 parity with ai-lib-rust Capabilities.tool_calling).
+    tool_calling: dict[str, Any] | None = None
 
     @field_validator("required", "optional", mode="before")
     @classmethod

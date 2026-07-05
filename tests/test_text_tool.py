@@ -81,3 +81,67 @@ def test_prompt_l2_contains_counterexamples() -> None:
     assert "<tool_call>" in prompt
     assert "WILL BE IGNORED" in prompt
     assert "shell" in prompt
+
+
+def test_lenient_plain_shell_body_dialect() -> None:
+    text = '让我检查一下。\n<shell>\nwhich opencode 2>/dev/null || echo "not found"\n</shell>'
+    parser = StandardTextToolParser.from_manifest_tool_calling(
+        {
+            "native": {"supported": True, "reliability": "partial"},
+            "text_fallback": {
+                "prompt_level": "L2",
+                "known_dialects": [{"tag": "shell", "map_to": "shell"}],
+            },
+        }
+    )
+    remaining, calls = parser.parse(text)
+    assert len(calls) == 1
+    assert calls[0].name == "shell"
+    assert calls[0].arguments["command"] == 'which opencode 2>/dev/null || echo "not found"'
+    assert "让我检查一下" in remaining
+
+
+def test_tool_calling_policy_deepseek_partial_is_hybrid() -> None:
+    from ai_lib_python.types.text_tool import NativeStrategy, ToolCallingPolicy
+
+    policy = ToolCallingPolicy.from_tool_calling(
+        {
+            "native": {"supported": True, "reliability": "partial"},
+            "text_fallback": {
+                "prompt_level": "L2",
+                "known_dialects": [{"tag": "shell", "map_to": "shell"}],
+            },
+        }
+    )
+    assert policy.native_strategy == NativeStrategy.HYBRID
+    assert policy.send_native_tool_specs()
+    assert policy.prefer_native_dispatcher()
+
+
+def test_tool_calling_policy_text_only_when_no_native() -> None:
+    from ai_lib_python.types.text_tool import NativeStrategy, ToolCallingPolicy
+
+    policy = ToolCallingPolicy.from_tool_calling(
+        {
+            "native": {"supported": False},
+            "text_fallback": {"prompt_level": "L2"},
+        }
+    )
+    assert policy.native_strategy == NativeStrategy.TEXT_ONLY
+    assert not policy.send_native_tool_specs()
+
+
+def test_capabilities_v2_preserves_tool_calling() -> None:
+    from ai_lib_python.protocol.v2.capabilities import CapabilitiesV2
+
+    caps = CapabilitiesV2.model_validate(
+        {
+            "required": ["text"],
+            "tool_calling": {
+                "native": {"supported": True, "reliability": "partial"},
+                "text_fallback": {"prompt_level": "L2"},
+            },
+        }
+    )
+    assert caps.tool_calling is not None
+    assert caps.tool_calling["native"]["reliability"] == "partial"
