@@ -1,128 +1,49 @@
 # ai-lib-python
 
-**Official Python Runtime for AI-Protocol** — The canonical Pythonic implementation for unified AI model interaction
+**Protocol runtime for [AI-Protocol](https://github.com/ailib-official/ai-protocol)** — async Python reference implementation (v**1.0.0**).
 
-[![PyPI Version](https://img.shields.io/pypi/v/ai-lib-python.svg)](https://pypi.org/project/ai-lib-python/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green.svg)](LICENSE)
+`ai-lib-python` is a single package with **execution / policy module separation** (E/P at the module level). Most apps import from the root:
 
-`ai-lib-python` is the Python runtime implementation for the [AI-Protocol](https://github.com/ailib-official/ai-protocol) specification, embodying the core design principle:
-
-> **All logic is operators, all configuration is protocol**
-
-## 🎯 Design Philosophy
-
-Unlike traditional adapter libraries that hardcode provider-specific logic, `ai-lib-python` is a **protocol-driven runtime**:
-
-- **Zero Hardcoding** — All behavior is driven by protocol manifests (YAML/JSON)
-- **Operator Pipeline** — Decoder → Selector → Accumulator → FanOut → EventMapper
-- **Hot Reload** — Protocol configurations can be updated at runtime without restart
-- **Unified Interface** — Single API for all providers, no provider-specific code needed
-
-## 🏗️ v0.8 Architecture: Logical Separation
-
-Starting from v0.8.0, `ai-lib-python` adopts an **execution/policy logical separation** architecture. Unlike Rust, Python maintains a single-package structure (following Python ecosystem conventions), with clear module-level separation:
-
-```
-ai_lib_python/
-├── ─────────────────────────────────────────────────────────
-│   E Layer (Execution) — Deterministic execution, minimal deps
-├───────────────────────────────────────────────────────────
-│   client/          Unified client interface
-│   protocol/        Protocol loading and validation
-│   pipeline/        Operator pipeline
-│   transport/       HTTP transport layer
-│   drivers/         Provider drivers
-│   types/           Type system (Message, Event, Tool)
-│   structured/      Structured output
-│   embeddings/      Embedding generation
-│   mcp/             MCP tool bridging
-│   computer_use/    Computer Use abstraction
-│   multimodal/      Multimodal support
-│   stt/ / tts/      Speech recognition/synthesis
-│   rerank/          Re-ranking
-│
-├── ─────────────────────────────────────────────────────────
-│   P Layer (Policy) — Policy decisions, may be stateful
-├───────────────────────────────────────────────────────────
-│   routing/         Model routing
-│   cache/           Response caching
-│   batch/           Batch processing
-│   plugins/         Plugin system
-│   resilience/      Resilience (retry/circuit-breaker/rate-limit)
-│   telemetry/       Telemetry and observability
-│   guardrails/      Input/output guardrails
-│   tokens/          Token counting and cost estimation
-│   registry/        Capability registry
+```python
+from ai_lib_python import AiClient, Message, StreamingEvent
 ```
 
-### Benefits of E/P Separation
+## How it works
 
-| Aspect | E Layer Modules | P Layer Modules |
-|--------|-----------------|-----------------|
-| **Responsibility** | Deterministic execution, protocol loading, type conversion | Policy decisions, caching, routing, telemetry |
-| **Dependencies** | Minimal, stateless | May be stateful, depends on E layer |
-| **Use Case** | Edge devices, serverless, microservices | Server-side, full applications |
+**Default chat path:** `AiClient` loads a provider manifest → builds a **`Pipeline`** from manifest operators → sends HTTP via **`HttpTransport`** (httpx). Streaming frames are normalized to **`StreamingEvent`**.
 
-### Installation Options
+This is protocol-driven for chat, but not “zero provider code”: the repo also ships provider-specific decoders/mappers, optional **`ProviderDriver`** implementations (advanced / tests), and standalone HTTP clients for embeddings, STT, TTS, and rerank.
+
+| Layer | Packages / modules | Responsibility |
+|-------|-------------------|----------------|
+| Execution (E) | `client`, `protocol`, `pipeline`, `transport`, `types`, `structured`, optional capability modules | Deterministic execution, manifest loading, HTTP |
+| Policy (P) | `resilience`, `cache`, `routing`, `plugins`, `guardrails`, `batch`, `telemetry`, `tokens` | Retry, rate limits, routing, telemetry — opt-in beside the client |
+| Facade | `ai_lib_python` (root) | Stable imports + examples + compliance tests |
+
+Published on [PyPI](https://pypi.org/project/ai-lib-python/): **`ai-lib-python` 1.0.0**. Python **3.10+**.
+
+## Quick start
 
 ```bash
-# Basic installation (E-layer core capabilities)
 pip install ai-lib-python
-
-# Full installation (all capabilities)
-pip install ai-lib-python[full]
+export DEEPSEEK_API_KEY="your-key"
 ```
-
-### BYOK Credential Chain
-
-ai-lib-python resolves provider credentials through the unified PT-074 chain:
-
-1. explicit application override;
-2. manifest-declared env from `endpoint.auth` or V1 top-level `auth`;
-3. conventional `<PROVIDER_ID>_API_KEY`;
-4. optional platform keyring support when installed and enabled.
-
-Auth attachment follows the active manifest auth shape (`bearer`, custom header, or query parameter). Diagnostics expose only source metadata and env var names, never raw key values.
-
-### Capability Extras
-
-**Execution Layer Capabilities**:
-- `[vision]` — Image processing (Pillow)
-- `[audio]` — Audio processing (soundfile)
-- `[embeddings]` — Embedding generation
-- `[structured]` — Structured output / JSON mode
-- `[stt]` — Speech-to-text
-- `[tts]` — Text-to-speech
-- `[reranking]` — Document re-ranking
-
-**Policy Layer Capabilities**:
-- `[batch]` — Batch processing
-- `[telemetry]` — OpenTelemetry integration
-- `[tokenizer]` — Token counting (tiktoken)
-
-**Meta-extras**:
-- `[full]` — Enable all capabilities
-- `[dev]` — Development dependencies (pytest, mypy, ruff)
-- `[docs]` — Documentation build (mkdocs)
-
-## 🚀 Quick Start
-
-### Basic Usage
 
 ```python
 import asyncio
 from ai_lib_python import AiClient, Message
 
-async def main():
-    # Protocol-driven: supports any provider defined in ai-protocol manifests
-    client = await AiClient.create("anthropic/claude-3-5-sonnet")
+async def main() -> None:
+    client = await AiClient.create("deepseek/deepseek-chat")
 
-    # Simple chat
     response = await (
         client.chat()
-        .system("You are a helpful assistant.")
-        .user("Hello!")
+        .messages([
+            Message.system("You are a helpful assistant."),
+            Message.user("Hello!"),
+        ])
+        .temperature(0.7)
+        .max_tokens(500)
         .execute()
     )
 
@@ -132,185 +53,144 @@ async def main():
 asyncio.run(main())
 ```
 
-### Streaming Response
+Same example: `python examples/basic_chat.py` (requires `OPENAI_API_KEY` or change the model).
+
+The fluent builder also supports `.system()` / `.user()` shorthands on `client.chat()`.
+
+### Streaming
 
 ```python
 import asyncio
-from ai_lib_python import AiClient, Message
-from ai_lib_python.types.events import StreamingEvent
+from ai_lib_python import AiClient
 
-async def main():
-    client = await AiClient.create("openai/gpt-4o")
+async def main() -> None:
+    client = await AiClient.create("deepseek/deepseek-chat")
 
-    # Streaming chat
-    async for event in client.chat().user("Tell me a joke").stream():
-        if isinstance(event, StreamingEvent.PartialContentDelta):
-            print(event.content, end="", flush=True)
-        elif isinstance(event, StreamingEvent.StreamEnd):
-            print()  # newline
+    async for event in (
+        client.chat()
+        .user("Write a haiku about Python.")
+        .stream()
+    ):
+        if event.is_content_delta:
+            print(event.as_content_delta.content, end="", flush=True)
+        elif event.is_stream_end:
+            break
 
     await client.close()
 
 asyncio.run(main())
 ```
 
-### Production Configuration
+Same example: `python examples/streaming.py`.
+
+### Call statistics
+
+`ChatResponse` does not embed stats. Use `execute_with_stats()` or `stream_with_stats()`:
 
 ```python
-from ai_lib_python import AiClient
+response, stats = await client.chat().user("Hello!").execute_with_stats()
+print(stats.latency_ms, stats.input_tokens, stats.output_tokens)
+```
 
-# Enable full production capabilities: retry, circuit breaker, rate limiting
+### Production resilience (opt-in)
+
+```python
 client = await (
     AiClient.builder()
     .model("deepseek/deepseek-chat")
-    .production_ready()  # One-click enable all resilience patterns
+    .production_ready()  # ResilientConfig.production() defaults
     .build()
 )
 ```
 
-### Multimodal
+`production_ready()` wires the policy-layer `resilience` module. It is **not** enabled by `AiClient.create()` alone.
 
-```python
-from ai_lib_python import Message, MessageContent, ContentBlock
+## Public API (package root)
 
-# Image + text
-message = Message(
-    role="user",
-    content=MessageContent.blocks([
-        ContentBlock.text("Describe this image"),
-        ContentBlock.image_from_file("./photo.jpg"),
-    ])
-)
+Always exported from `ai_lib_python`:
 
-response = await client.chat().messages([message]).execute()
-```
+- **Client:** `AiClient`, `AiClientBuilder`, `ChatResponse`, `CallStats`
+- **Types:** `Message`, `MessageRole`, `MessageContent`, `ContentBlock`, `StreamingEvent`, `ToolCall`, `ToolDefinition`
+- **Errors:** `AiLibError`, `ProtocolError`, `TransportError`
+- **Feature probes:** `HAS_VISION`, `HAS_AUDIO`, `HAS_TELEMETRY`, `HAS_TOKENIZER`, `HAS_WATCHDOG`, `HAS_KEYRING`, `require_extra`
 
-## 🔧 Configuration
+Subpackages (import explicitly when needed):
 
-### Protocol Manifest Search Path
+- **Execution:** `ai_lib_python.pipeline`, `protocol`, `transport`, `structured`, `embeddings`, `stt`, `tts`, `rerank`, `multimodal`, `mcp`, `computer_use`
+- **Policy:** `ai_lib_python.resilience`, `cache`, `routing`, `plugins`, `guardrails`, `batch`, `telemetry`, `tokens`, `registry`
+- **Advanced:** `ai_lib_python.drivers` — `ProviderDriver`, `create_driver` (not used by default `AiClient` chat path)
 
-The runtime searches for protocol configurations in the following order:
+### What extras actually do
 
-1. `AI_PROTOCOL_DIR` / `AI_PROTOCOL_PATH` environment variable
-2. Common development paths: `ai-protocol/`, `../ai-protocol/`, `../../ai-protocol/`
-3. Final fallback: GitHub raw `ailib-official/ai-protocol`
-
-### API Keys
-
-**Recommended** (production):
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-export OPENAI_API_KEY="sk-..."
-export DEEPSEEK_API_KEY="sk-..."
-```
-
-**Optional** (local development): OS keyring (requires `keyring` package)
-
-### Environment Variables
+| Extra | What you get | Notes |
+|-------|--------------|-------|
+| `vision` | Pillow-backed image blocks | Marked via `HAS_VISION` |
+| `audio` | Audio helpers | `HAS_AUDIO` |
+| `embeddings` | `EmbeddingClient` | Standalone HTTP client |
+| `structured` | Structured / JSON mode helpers | |
+| `stt` / `tts` / `reranking` | `SttClient`, `TtsClient`, `RerankerClient` | Standalone service clients |
+| `batch` | Batch collector / executor | Policy layer |
+| `telemetry` | OpenTelemetry sinks, `report_feedback` | `FeedbackEvent` types in subpackage |
+| `tokenizer` | Token counting (tiktoken) | `HAS_TOKENIZER` |
+| `full` | All extras above | |
+| `dev` | pytest, mypy, ruff | Development only |
 
 ```bash
-# Proxy
-export AI_PROXY_URL="http://user:pass@host:port"
-
-# Timeout
-export AI_HTTP_TIMEOUT_SECS=30
-
-# Concurrency limit
-export AI_LIB_MAX_INFLIGHT=10
-
-# Rate limiting
-export AI_LIB_RPS=5  # or AI_LIB_RPM=300
+pip install ai-lib-python[full]
 ```
 
-### HTTP proxies (cross-runtime parity with ai-lib-rust)
+### Honest capability boundaries
+
+| Area | In the package | Not included |
+|------|----------------|--------------|
+| **MCP** (`mcp` module) | `McpToolBridge` format conversion | MCP server transport wired into `AiClient` |
+| **Computer Use** (`computer_use`) | `ComputerAction`, `SafetyPolicy` validation | Screenshot / input execution environment |
+| **Hot reload** | `AiClientBuilder.hot_reload()` flag + in-memory cache | File watching (needs `watchdog`; `HAS_WATCHDOG`) — no automatic reload today |
+| **`ProviderDriver`** | Public `drivers` module | Default `AiClient` chat path |
+| **Rate limit env** | Configure via `AiClientBuilder` / `resilience` | `AI_LIB_RPS` / `AI_LIB_RPM` are **not** read by the runtime |
+
+## Advanced: `ProviderDriver`
+
+`ai_lib_python.drivers` exposes `ProviderDriver`, `create_driver`, and OpenAI / Anthropic / Gemini drivers. **`AiClient` does not use this path** for chat; it uses `Pipeline` from manifests. Drivers are for compliance tests and custom integrations.
+
+## Resilience
+
+- **Built into `AiClient`:** optional `max_inflight` backpressure via builder.
+- **Opt-in policy layer:** `ai_lib_python.resilience` (retry, rate limiter, circuit breaker) — use `production_ready()` or explicit `ResilientConfig`.
+- **Not auto-enabled** on `AiClient.create()`.
+
+## Protocol manifests
+
+Resolution order:
+
+1. `AiClientBuilder.protocol_path(...)` / `ProtocolLoader(base_path=...)`
+2. `AI_PROTOCOL_DIR` / `AI_PROTOCOL_PATH`
+3. Dev paths: `ai-protocol/`, `../ai-protocol/`, …
+4. Fallback: GitHub raw `ailib-official/ai-protocol` (`main`)
+
+Per base path: `dist/v2/providers/<id>.json` → `v2/providers/<id>.yaml` → V1 equivalents.
+
+## API keys (BYOK chain)
+
+1. Explicit override on builder / `AiClient.create(..., api_key=...)`
+2. Manifest-declared env from `endpoint.auth`
+3. `<PROVIDER_ID>_API_KEY` (recommended for CI/containers)
+4. OS keyring when `keyring` is installed (`HAS_KEYRING`)
+
+## Environment variables
 
 | Variable | Purpose |
 |----------|---------|
-| `AI_PROXY_URL` | Explicit proxy URL for outbound requests when `AI_HTTP_TRUST_ENV=1` (Python also honors httpx `trust_env` only in that mode). |
-| `HTTP_PROXY` / `HTTPS_PROXY` | Standard vars; in Rust they are merged with `AI_PROXY_URL` as candidate routes. In Python, enable via `AI_HTTP_TRUST_ENV=1` so local/mock traffic is not accidentally proxied. |
-| `NO_PROXY` / `AI_PROXY_NO_PROXY` | Comma-separated hosts that must bypass the proxy (include mock hostnames, API hostnames that must be direct, and `127.0.0.1`). Rust documents `AI_PROXY_NO_PROXY`; set the same where your stack reads it. |
+| `AI_PROTOCOL_DIR` / `AI_PROTOCOL_PATH` | Local manifest directory or GitHub raw base URL |
+| `AI_PROXY_URL` | Explicit proxy when `AI_HTTP_TRUST_ENV=1` |
+| `HTTP_PROXY` / `HTTPS_PROXY` | Standard proxy vars (with `AI_HTTP_TRUST_ENV=1`) |
+| `NO_PROXY` / `AI_PROXY_NO_PROXY` | Hosts that bypass proxy |
+| `AI_HTTP_TIMEOUT_SECS` | HTTP timeout |
+| `AI_LIB_MAX_INFLIGHT` | Concurrency backpressure (also via builder) |
 
-With a proxy: set `NO_PROXY` to include the mock server host (for example `NO_PROXY=192.168.2.13,localhost,127.0.0.1`).
+Cross-runtime proxy semantics: [CROSS_RUNTIME.md](https://github.com/ailib-official/ai-protocol/blob/main/docs/CROSS_RUNTIME.md).
 
-Or in code: `AiClient.create("openai/gpt-4o", base_url="http://localhost:4010")`.
-
-For shared semantics across runtimes, see [CROSS_RUNTIME.md](https://github.com/ailib-official/ai-protocol/blob/main/docs/CROSS_RUNTIME.md).
-
-## 🧪 Testing
-
-### Unit Tests
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# Run unit tests only
-pytest tests/unit/ -v
-```
-
-### Compliance Tests (Cross-Runtime Consistency)
-
-Install test dependencies first (`pytest` is not a default runtime dependency):
-
-```bash
-python -m pip install -e ".[dev]"
-```
-
-```bash
-# Run compliance tests
-python -m pytest tests/compliance/ -v
-
-# Specify compliance directory (POSIX)
-COMPLIANCE_DIR=../ai-protocol/tests/compliance python -m pytest tests/compliance/ -v
-
-# Windows PowerShell
-$env:COMPLIANCE_DIR = "D:\ai-protocol\tests\compliance"
-python -m pytest tests/compliance/ -v
-
-# Wave-5 execution-layer-only subset (skips resilience-heavy cases)
-$env:COMPLIANCE_SUBSET = "e_only"   # PowerShell
-# COMPLIANCE_SUBSET=e_only python -m pytest tests/compliance/ -v   # POSIX
-python -m pytest tests/compliance/ -v
-```
-
-### Testing with Mock Server
-
-```bash
-# Start ai-protocol-mock
-docker-compose up -d
-
-# Run tests with mock
-MOCK_HTTP_URL=http://localhost:4010 pytest tests/integration/ -v
-```
-
-## 📊 Observability
-
-### Call Statistics
-
-```python
-response = await client.chat().user("Hello").execute()
-print(f"request_id: {response.stats.request_id}")
-print(f"latency_ms: {response.stats.latency_ms}")
-print(f"tokens: {response.usage}")
-```
-
-### Telemetry Feedback (opt-in)
-
-```python
-from ai_lib_python.telemetry import FeedbackEvent, ChoiceSelectionFeedback, report_feedback
-
-await report_feedback(
-    FeedbackEvent.ChoiceSelection(
-        request_id=response.stats.request_id,
-        chosen_index=0,
-    )
-)
-```
-
-## 🔄 Error Codes (V2 Specification)
-
-All provider errors are normalized to 13 standard error codes:
+## Standard error codes (V2)
 
 | Code | Name | Retryable | Fallbackable |
 |------|------|-----------|--------------|
@@ -328,46 +208,51 @@ All provider errors are normalized to 13 standard error codes:
 | E4002 | `cancelled` | No | No |
 | E9999 | `unknown` | No | No |
 
-## 🤝 Community & Contributing
+## Testing
 
-### Use Cases
+```bash
+pip install -e ".[dev]"
+pytest tests/unit/ -v
+```
 
-- **Server Applications** — Use `pip install ai-lib-python[full]` for complete capabilities
-- **Edge/Serverless** — Basic installation, add extras as needed
-- **Microservices** — Combine with telemetry for distributed tracing
+Compliance (cross-runtime YAML):
 
-### Contributing Guidelines
+```bash
+# POSIX
+COMPLIANCE_DIR=../ai-protocol/tests/compliance pytest tests/compliance/ -v
 
-1. Code must pass `ruff` checks and `mypy` type checking
-2. New features must include tests; compliance tests must pass
-3. Follow [Python type hints best practices](https://typing.readthedocs.io/)
+# Windows PowerShell
+$env:COMPLIANCE_DIR = "D:\ai-protocol\tests\compliance"
+pytest tests/compliance/ -v
+```
 
-### Code of Conduct
+Mock server integration (requires [ai-protocol-mock](https://github.com/ailib-official/ai-protocol-mock)):
 
-- Respect all contributors
-- Welcome participants from all backgrounds
-- Focus on technical discussions, avoid personal attacks
-- Report issues via GitHub Issues
+```bash
+MOCK_HTTP_URL=http://localhost:4010 pytest tests/integration/ -v
+```
 
-## 🔗 Related Projects
+## Examples
 
-| Project | Description |
-|---------|-------------|
-| [AI-Protocol](https://github.com/ailib-official/ai-protocol) | Protocol specification (v1.5 / V2) |
-| [ai-lib-rust](https://github.com/ailib-official/ai-lib-rust) | Rust runtime |
-| [ai-lib-ts](https://github.com/ailib-official/ai-lib-ts) | TypeScript runtime |
-| [ai-lib-go](https://github.com/ailib-official/ai-lib-go) | Go runtime |
-| [ai-protocol-mock](https://github.com/ailib-official/ai-protocol-mock) | Mock server |
+| Example | Topic |
+|---------|-------|
+| `basic_chat.py` | Quick start, `execute_with_stats` |
+| `streaming.py` | `is_content_delta`, `stream_with_stats` |
+| `resilience.py` | Policy layer |
+| `multimodal.py` | Vision extra |
+| `tool_calling.py` | Tools |
+| `multi_provider_production.py` | Routing / fallbacks |
+| `guardrails_production.py` | Guardrails |
+| `concurrent_production.py` | Concurrency |
+| `providers.py` | Provider switching |
 
-## 📄 License
+## Related
 
-This project is dual-licensed:
+- [AI-Protocol](https://github.com/ailib-official/ai-protocol) — specification & manifests
+- [ai-lib-rust](https://github.com/ailib-official/ai-lib-rust) — Rust runtime
+- [ai-lib-ts](https://github.com/ailib-official/ai-lib-ts) — TypeScript runtime
+- [ai-lib-go](https://github.com/ailib-official/ai-lib-go) — Go runtime
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT License ([LICENSE-MIT](LICENSE-MIT))
+## License
 
-You may choose either.
-
----
-
-**ai-lib-python** — Where protocol meets Pythonic 🚀
+Dual-licensed under [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).
