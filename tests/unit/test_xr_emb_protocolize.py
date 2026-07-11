@@ -37,23 +37,14 @@ async def test_rerank_build_without_base_url_errors() -> None:
 @pytest.mark.asyncio
 async def test_rerank_build_without_api_key_errors() -> None:
     with pytest.raises(ValueError, match="API key required"):
-        await (
-            RerankerClient.builder()
-            .model("rerank-v3")
-            .base_url("https://example.test")
-            .build()
-        )
+        await RerankerClient.builder().model("rerank-v3").base_url("https://example.test").build()
 
 
 @pytest.mark.asyncio
 async def test_rerank_from_manifest_uses_base_and_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TESTPROV_API_KEY", "secret-from-env")
-    manifest = _minimal_manifest(
-        endpoints={"rerank": {"path": "/v2/rerank", "method": "POST"}}
-    )
-    client = await (
-        RerankerClient.builder().from_manifest(manifest, "rerank-english-v3").build()
-    )
+    manifest = _minimal_manifest(endpoints={"rerank": {"path": "/v2/rerank", "method": "POST"}})
+    client = await RerankerClient.builder().from_manifest(manifest, "rerank-english-v3").build()
     assert client.model == "rerank-english-v3"
     assert client._base_url == "https://example.test/v1"
     assert client._endpoint_path == "/v2/rerank"
@@ -77,8 +68,6 @@ async def test_embedding_from_manifest_sets_transport_base(
     manifest = _minimal_manifest(
         endpoints={"embeddings": {"path": "/custom/embeddings", "method": "POST"}}
     )
-    client = await (
-        EmbeddingClient.builder().from_manifest(manifest, "emb-small").build()
-    )
+    client = await EmbeddingClient.builder().from_manifest(manifest, "emb-small").build()
     assert client.model == "emb-small"
     assert client._get_embedding_endpoint() == "/custom/embeddings"

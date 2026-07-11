@@ -201,8 +201,10 @@ class EmbeddingClient:
                 return path if path.startswith("/") else f"/{path}"
         if self._manifest.services:
             svc = self._manifest.services.get("embeddings")
-            if hasattr(svc, "path") and isinstance(svc.path, str) and svc.path.strip():
-                return svc.path if svc.path.startswith("/") else f"/{svc.path}"
+            if svc is not None and hasattr(svc, "path"):
+                svc_path = getattr(svc, "path", None)
+                if isinstance(svc_path, str) and svc_path.strip():
+                    return svc_path if svc_path.startswith("/") else f"/{svc_path}"
             if isinstance(svc, dict):
                 path = svc.get("path")
                 if isinstance(path, str) and path.strip():
@@ -337,7 +339,7 @@ class EmbeddingClientBuilder:
             )
         self._api_key = resolved.secret
         self._base_url = self._base_url or manifest.endpoint.base_url
-        self._model = model_id if "/" not in model_id else model_id
+        self._model = model_id
         self._manifest = manifest
         self._model_id = model_id
         return self
@@ -348,7 +350,11 @@ class EmbeddingClientBuilder:
         if len(parts) < 2:
             raise ValueError("Model must be provider/model-id form")
         model_id = "/".join(parts[1:])
-        loader = ProtocolLoader(base_path=self._protocol_path) if self._protocol_path else ProtocolLoader()
+        loader = (
+            ProtocolLoader(base_path=self._protocol_path)
+            if self._protocol_path
+            else ProtocolLoader()
+        )
         manifest = await loader.load_model(model)
         return await self.from_manifest(manifest, model_id).build()
 
@@ -392,7 +398,11 @@ class EmbeddingClientBuilder:
             )
         model_id = "/".join(parts[1:])
 
-        loader = ProtocolLoader(base_path=self._protocol_path) if self._protocol_path else ProtocolLoader()
+        loader = (
+            ProtocolLoader(base_path=self._protocol_path)
+            if self._protocol_path
+            else ProtocolLoader()
+        )
         manifest = await loader.load_model(self._model)
 
         transport = HttpTransport(

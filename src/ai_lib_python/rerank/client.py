@@ -10,7 +10,7 @@ no silent Cohere host default ([ARCH-001]).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import httpx
 
@@ -173,9 +173,7 @@ class RerankerClientBuilder:
         resolved = resolve_credential(manifest.id, manifest, self._api_key)
         if not resolved.secret:
             tried = list(resolved.required_envs) + list(resolved.conventional_envs)
-            raise ValueError(
-                f"API key required for rerank (provider={manifest.id}; tried {tried})"
-            )
+            raise ValueError(f"API key required for rerank (provider={manifest.id}; tried {tried})")
         self._api_key = resolved.secret
         self._base_url = manifest.endpoint.base_url
         if self._endpoint_path is None:
@@ -189,7 +187,11 @@ class RerankerClientBuilder:
         if len(parts) < 2:
             raise ValueError("Model must be provider/model-id form")
         model_id = "/".join(parts[1:])
-        loader = ProtocolLoader(base_path=self._protocol_path) if self._protocol_path else ProtocolLoader()
+        loader = (
+            ProtocolLoader(base_path=self._protocol_path)
+            if self._protocol_path
+            else ProtocolLoader()
+        )
         manifest = await loader.load_model(model)
         return await self.from_manifest(manifest, model_id).build()
 
