@@ -197,9 +197,18 @@ class EmbeddingClient:
         embedding_cfg = self._manifest.endpoints.get("embeddings")
         if isinstance(embedding_cfg, dict):
             path = embedding_cfg.get("path")
-            if isinstance(path, str):
-                return path
-        return "/v1/embeddings"
+            if isinstance(path, str) and path.strip():
+                return path if path.startswith("/") else f"/{path}"
+        if self._manifest.services:
+            svc = self._manifest.services.get("embeddings")
+            if hasattr(svc, "path") and isinstance(svc.path, str) and svc.path.strip():
+                return svc.path if svc.path.startswith("/") else f"/{svc.path}"
+            if isinstance(svc, dict):
+                path = svc.get("path")
+                if isinstance(path, str) and path.strip():
+                    return path if path.startswith("/") else f"/{path}"
+        # Path-only OpenAI-compat fallback — never a vendor host ([ARCH-001] / XR-EMB).
+        return "/embeddings"
 
     @property
     def model(self) -> str:
@@ -243,6 +252,9 @@ class EmbeddingClientBuilder:
         self._base_url: str | None = None
         self._dimensions: int | None = None
         self._timeout: float | None = None
+        self._protocol_path: str | None = None
+        self._manifest: ProtocolManifest | None = None
+        self._model_id: str | None = None
 
     def model(self, model: str) -> EmbeddingClientBuilder:
         """Set the model.
@@ -304,6 +316,42 @@ class EmbeddingClientBuilder:
         self._timeout = timeout
         return self
 
+    def protocol_path(self, path: str) -> EmbeddingClientBuilder:
+        """Set protocol base path for ProtocolLoader."""
+        self._protocol_path = path
+        return self
+
+    def from_manifest(
+        self,
+        manifest: ProtocolManifest,
+        model_id: str,
+    ) -> EmbeddingClientBuilder:
+        """Apply credential + base_url from manifest; keep manifest for build()."""
+        from ai_lib_python.transport.auth import resolve_credential
+
+        resolved = resolve_credential(manifest.id, manifest, self._api_key)
+        if not resolved.secret:
+            tried = list(resolved.required_envs) + list(resolved.conventional_envs)
+            raise ValueError(
+                f"API key required for embeddings (provider={manifest.id}; tried {tried})"
+            )
+        self._api_key = resolved.secret
+        self._base_url = self._base_url or manifest.endpoint.base_url
+        self._model = model_id if "/" not in model_id else model_id
+        self._manifest = manifest
+        self._model_id = model_id
+        return self
+
+    async def from_model(self, model: str) -> EmbeddingClient:
+        """Load provider/model via ProtocolLoader then build."""
+        parts = model.split("/")
+        if len(parts) < 2:
+            raise ValueError("Model must be provider/model-id form")
+        model_id = "/".join(parts[1:])
+        loader = ProtocolLoader(base_path=self._protocol_path) if self._protocol_path else ProtocolLoader()
+        manifest = await loader.load_model(model)
+        return await self.from_manifest(manifest, model_id).build()
+
     async def build(self) -> EmbeddingClient:
         """Build the embedding client.
 
@@ -311,21 +359,42 @@ class EmbeddingClientBuilder:
             EmbeddingClient instance
 
         Raises:
-            ValueError: If model is not set
+            ValueError: If model is not set or provider/model form is missing
         """
+        if self._manifest is not None:
+            manifest = self._manifest
+            model_id = self._model_id or (
+                self._model.split("/", 1)[1] if self._model and "/" in self._model else self._model
+            )
+            if not model_id:
+                raise ValueError("Model must be set before building")
+            transport = HttpTransport(
+                manifest=manifest,
+                model_id=model_id,
+                api_key=self._api_key,
+                base_url_override=self._base_url,
+                timeout=self._timeout,
+            )
+            return EmbeddingClient(
+                manifest=manifest,
+                transport=transport,
+                model_id=model_id,
+            )
+
         if not self._model:
             raise ValueError("Model must be set before building")
 
-        # Parse model identifier
         parts = self._model.split("/")
-        provider_id = parts[0] if len(parts) >= 2 else "openai"
-        model_id = parts[-1]
+        if len(parts) < 2:
+            raise ValueError(
+                "Model must be provider/model-id form, or use from_manifest/from_model "
+                "(no silent openai default)"
+            )
+        model_id = "/".join(parts[1:])
 
-        # Load protocol manifest
-        loader = ProtocolLoader()
-        manifest = await loader.load_provider(provider_id)
+        loader = ProtocolLoader(base_path=self._protocol_path) if self._protocol_path else ProtocolLoader()
+        manifest = await loader.load_model(self._model)
 
-        # Create transport
         transport = HttpTransport(
             manifest=manifest,
             model_id=model_id,

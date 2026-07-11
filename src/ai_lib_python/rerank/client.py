@@ -1,14 +1,24 @@
 """重排序客户端：用于文档相关性评分。
 
 Rerank client for document relevance scoring.
+
+Aligned with XR-EMB-PROTOCOLIZE-CONTRACT / ai-lib-rust AR-REVIEW-002:
+base_url + path + credentials come from protocol manifests or explicit overrides —
+no silent Cohere host default ([ARCH-001]).
 """
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import httpx
+
+from ai_lib_python.protocol.loader import ProtocolLoader
+from ai_lib_python.transport.auth import resolve_credential
+
+if TYPE_CHECKING:
+    from ai_lib_python.protocol.manifest import ProtocolManifest
 
 
 @dataclass
@@ -28,15 +38,36 @@ class RerankOptions:
     max_tokens_per_doc: int | None = None
 
 
+def _rerank_path_from_manifest(manifest: ProtocolManifest) -> str:
+    """Resolve rerank path from endpoints/services; else `/rerank`."""
+    ep = manifest.endpoints.get("rerank") if manifest.endpoints else None
+    if isinstance(ep, dict):
+        path = ep.get("path")
+        if isinstance(path, str) and path.strip():
+            return path if path.startswith("/") else f"/{path}"
+    svc = None
+    if manifest.services:
+        svc = manifest.services.get("rerank")
+        if hasattr(svc, "path"):
+            path = getattr(svc, "path", None)
+            if isinstance(path, str) and path.strip():
+                return path if path.startswith("/") else f"/{path}"
+        if isinstance(svc, dict):
+            path = svc.get("path")
+            if isinstance(path, str) and path.strip():
+                return path if path.startswith("/") else f"/{path}"
+    return "/rerank"
+
+
 class RerankerClient:
-    """Client for document reranking (e.g. Cohere Rerank)."""
+    """Client for document reranking (manifest- or explicitly configured)."""
 
     def __init__(
         self,
         *,
         model: str,
         api_key: str,
-        base_url: str = "https://api.cohere.com/v2",
+        base_url: str,
         endpoint_path: str = "/rerank",
         timeout: float = 60.0,
     ) -> None:
@@ -99,7 +130,7 @@ class RerankerClient:
 
 
 class RerankerClientBuilder:
-    """Builder for RerankerClient."""
+    """Builder for RerankerClient (XR-EMB contract)."""
 
     def __init__(self) -> None:
         self._model: str | None = None
@@ -107,6 +138,7 @@ class RerankerClientBuilder:
         self._base_url: str | None = None
         self._endpoint_path: str | None = None
         self._timeout: float = 60.0
+        self._protocol_path: str | None = None
 
     def model(self, model: str) -> RerankerClientBuilder:
         self._model = model
@@ -128,14 +160,54 @@ class RerankerClientBuilder:
         self._timeout = timeout
         return self
 
+    def protocol_path(self, path: str) -> RerankerClientBuilder:
+        self._protocol_path = path
+        return self
+
+    def from_manifest(
+        self,
+        manifest: ProtocolManifest,
+        model_id: str,
+    ) -> RerankerClientBuilder:
+        """Apply base_url / path / credential from an already-loaded manifest."""
+        resolved = resolve_credential(manifest.id, manifest, self._api_key)
+        if not resolved.secret:
+            tried = list(resolved.required_envs) + list(resolved.conventional_envs)
+            raise ValueError(
+                f"API key required for rerank (provider={manifest.id}; tried {tried})"
+            )
+        self._api_key = resolved.secret
+        self._base_url = manifest.endpoint.base_url
+        if self._endpoint_path is None:
+            self._endpoint_path = _rerank_path_from_manifest(manifest)
+        self._model = model_id
+        return self
+
+    async def from_model(self, model: str) -> RerankerClient:
+        """Load `provider/model-id` via ProtocolLoader then build."""
+        parts = model.split("/")
+        if len(parts) < 2:
+            raise ValueError("Model must be provider/model-id form")
+        model_id = "/".join(parts[1:])
+        loader = ProtocolLoader(base_path=self._protocol_path) if self._protocol_path else ProtocolLoader()
+        manifest = await loader.load_model(model)
+        return await self.from_manifest(manifest, model_id).build()
+
     async def build(self) -> RerankerClient:
         model = self._model
         if not model:
             raise ValueError("Model must be specified")
-        api_key = self._api_key or os.environ.get("COHERE_API_KEY")
+        api_key = self._api_key
         if not api_key:
-            raise ValueError("API key required (COHERE_API_KEY)")
-        base_url = self._base_url or "https://api.cohere.com/v2"
+            raise ValueError(
+                "API key required: use from_manifest/from_model or set api_key explicitly"
+            )
+        base_url = self._base_url
+        if not base_url:
+            raise ValueError(
+                "base_url required: use from_manifest/from_model or set base_url "
+                "explicitly (no vendor default)"
+            )
         endpoint_path = self._endpoint_path or "/rerank"
         return RerankerClient(
             model=model,

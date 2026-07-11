@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-11
+
+### Fixed
+
+- **ALP-EMB-001 / XR-EMB**: Protocolize `EmbeddingClient` / `RerankerClient` — no silent OpenAI/Cohere host defaults; `from_manifest` / `from_model`; path-only `/embeddings` `/rerank` fallback ([ARCH-001]).
+
 ## [1.0.0] - 2026-07-01
 
 ### Milestone
