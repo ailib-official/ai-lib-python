@@ -24,7 +24,7 @@ def _resolve_ai_protocol_root() -> Path:
 
 def test_consume_latest_v2_generative_manifests() -> None:
     root = _resolve_ai_protocol_root()
-    providers = ("google", "deepseek", "qwen", "doubao")
+    providers = ("gemini", "deepseek", "qwen", "doubao")
 
     for provider in providers:
         path = root / "v2" / "providers" / f"{provider}.yaml"
@@ -36,7 +36,7 @@ def test_consume_latest_v2_generative_manifests() -> None:
         assert manifest.endpoint is not None, f"{provider} should expose endpoint field"
         assert manifest.base_url
 
-        if provider == "google":
+        if provider == "gemini":
             assert manifest.detect_api_style() == ApiStyle.GEMINI_GENERATE
         else:
             assert manifest.detect_api_style() == ApiStyle.OPENAI_COMPATIBLE
@@ -46,7 +46,7 @@ def test_consume_latest_v2_generative_manifests() -> None:
 
         assert caps.supports_input(Modality.TEXT)
         assert caps.supports_output(Modality.TEXT)
-        if provider in {"google", "qwen"}:
+        if provider in {"gemini", "qwen"}:
             assert caps.supports_input(Modality.VIDEO)
 
         output = manifest.multimodal.output or {}
