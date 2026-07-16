@@ -185,6 +185,10 @@ class ManifestV2(BaseModel):
 
     # --- Ring 1: Core Skeleton ------------------------------------------
     id: str = Field(description="Provider identifier (e.g., 'openai')")
+    aliases: list[str] = Field(
+        default_factory=list,
+        description="Alternate lookup keys (PT-ARCH-005); not used as file stems",
+    )
     name: str = Field(default="", description="Human-readable name")
     protocol_version: str = Field(default="2.0")
     api_style: ApiStyle = Field(default=ApiStyle.OPENAI_COMPATIBLE)

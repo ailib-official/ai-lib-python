@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ailib-official/ai-protocol
-          ref: v1.0.0
+          ref: 627a6ebb765a3810c52822e84fdee95bb1ee24a4
           path: ai-protocol
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -57,13 +57,13 @@ jobs:
           COMPLIANCE_DIR: ${{ github.workspace }}/ai-protocol/tests/compliance
         run: |
           python -m compileall src tests examples
-          pytest tests/unit tests/compliance -v --cov=src/ai_lib_python --cov-report=xml --cov-report=term-missing
+          pytest tests/unit tests/compliance tests/integration/test_generative_manifest_consumption.py -v --cov=src/ai_lib_python --cov-report=xml --cov-report=term-missing
 
   test-with-mock:
     name: Test with ai-protocol-mock
     runs-on: ubuntu-latest
     env:
-      AI_PROTOCOL_REF: v1.0.0
+      AI_PROTOCOL_REF: 627a6ebb765a3810c52822e84fdee95bb1ee24a4
     steps:
       - uses: actions/checkout@v4
 
@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ailib-official/ai-protocol
-          ref: v1.0.0
+          ref: 627a6ebb765a3810c52822e84fdee95bb1ee24a4
           path: ai-protocol
 
       - name: Checkout ai-protocol-mock
@@ -89,7 +89,7 @@ jobs:
         run: |
           cd ai-protocol-mock
           pip install -e .
-          python scripts/sync_manifests.py --force --tag v1.0.0 || true
+          python scripts/sync_manifests.py --force --tag 627a6ebb765a3810c52822e84fdee95bb1ee24a4 || true
           uvicorn ai_protocol_mock.main:app --host 0.0.0.0 --port 4010 &
           sleep 5
 
@@ -163,7 +163,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ailib-official/ai-protocol
-          ref: v1.0.0
+          ref: 627a6ebb765a3810c52822e84fdee95bb1ee24a4
           path: ai-protocol
 
       - name: Set up Python

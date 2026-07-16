@@ -348,3 +348,74 @@ class TestProtocolLoader:
         manifest = await loader.load_provider("openai")
         assert manifest.protocol_version == "1.5"
         assert manifest.endpoint.base_url == "https://v1.example.com"
+
+    @pytest.mark.asyncio
+    async def test_load_provider_resolves_google_alias_via_identity_map(
+        self, tmp_path: Path
+    ) -> None:
+        """Missing stem falls through to dist/provider-identity.json then canonical."""
+        gemini_path = tmp_path / "dist" / "v2" / "providers" / "gemini.json"
+        identity_path = tmp_path / "dist" / "provider-identity.json"
+        gemini_path.parent.mkdir(parents=True, exist_ok=True)
+        identity_path.parent.mkdir(parents=True, exist_ok=True)
+
+        gemini_path.write_text(
+            json.dumps(
+                {
+                    "id": "gemini",
+                    "aliases": ["google"],
+                    "protocol_version": "2.0",
+                    "endpoint": {"base_url": "https://generativelanguage.googleapis.com"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        identity_path.write_text(
+            json.dumps(
+                {
+                    "families": [
+                        {"canonical_id": "gemini", "aliases": ["google"]},
+                        {"canonical_id": "moonshot", "aliases": ["kimi"]},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loader = ProtocolLoader(base_path=tmp_path, fallback_to_github=False)
+        manifest = await loader.load_provider("google")
+        assert manifest.id == "gemini"
+        assert "google" in manifest.aliases
+
+    @pytest.mark.asyncio
+    async def test_load_provider_degrades_to_source_yaml_when_dist_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """Elegant degrade: source YAML only when published dist is absent."""
+        yaml_path = tmp_path / "v2" / "providers" / "openai.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        yaml_path.write_text(
+            "id: openai\nprotocol_version: '2.0'\nendpoint:\n  base_url: https://yaml.example.com\n",
+            encoding="utf-8",
+        )
+
+        loader = ProtocolLoader(base_path=tmp_path, fallback_to_github=False)
+        manifest = await loader.load_provider("openai")
+        assert manifest.endpoint.base_url == "https://yaml.example.com"
+
+    def test_canonical_from_identity_map_helpers(self) -> None:
+        assert (
+            ProtocolLoader._canonical_from_identity_value(
+                {"families": [{"canonical_id": "gemini", "aliases": ["google"]}]},
+                "google",
+            )
+            == "gemini"
+        )
+        assert (
+            ProtocolLoader._canonical_from_identity_value(
+                {"canonical_id": "gemini", "aliases": ["google"]},
+                "google",
+            )
+            == "gemini"
+        )
+        assert ProtocolLoader._canonical_from_identity_value({"families": []}, "google") is None

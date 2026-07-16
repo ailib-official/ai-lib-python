@@ -106,31 +106,28 @@ class ProtocolLoader:
         return None
 
     def _get_provider_path(self, provider_id: str) -> Path | None:
-        """Get the path to a provider manifest file."""
+        """Get the path to a provider manifest file.
+
+        Prefer published ``dist/`` JSON; degrade to source YAML/JSON only when
+        dist is absent (local unbuilt trees).
+        """
         base = self._resolve_base_path()
         if not base:
             return None
 
-        # Try dist/v2/providers first (pre-built JSON)
-        json_v2_path = base / "dist" / "v2" / "providers" / f"{provider_id}.json"
-        if json_v2_path.exists():
-            return json_v2_path
-
-        # Try v2/providers (YAML source)
-        yaml_v2_path = base / "v2" / "providers" / f"{provider_id}.yaml"
-        if yaml_v2_path.exists():
-            return yaml_v2_path
-
-        # Try dist/v1/providers first (pre-built JSON)
-        json_path = base / "dist" / "v1" / "providers" / f"{provider_id}.json"
-        if json_path.exists():
-            return json_path
-
-        # Try v1/providers (YAML source)
-        yaml_path = base / "v1" / "providers" / f"{provider_id}.yaml"
-        if yaml_path.exists():
-            return yaml_path
-
+        candidates = [
+            # Primary: published package surface
+            base / "dist" / "v2" / "providers" / f"{provider_id}.json",
+            base / "dist" / "v1" / "providers" / f"{provider_id}.json",
+            # Graceful degrade: source / unbuilt checkout
+            base / "v2" / "providers" / f"{provider_id}.json",
+            base / "v2" / "providers" / f"{provider_id}.yaml",
+            base / "v1" / "providers" / f"{provider_id}.json",
+            base / "v1" / "providers" / f"{provider_id}.yaml",
+        ]
+        for path in candidates:
+            if path.exists():
+                return path
         return None
 
     def _get_model_path(self, model_id: str) -> Path | None:
@@ -205,11 +202,120 @@ class ProtocolLoader:
         """Load and parse a manifest file from an explicit path."""
         return self._load_file(Path(path))
 
+    def _identity_map_candidates(self) -> list[Path]:
+        """Candidate paths for published provider-identity map (dist first)."""
+        roots: list[Path] = []
+        if self._base_path is not None:
+            roots.append(self._base_path)
+        env_path = os.getenv("AI_PROTOCOL_DIR") or os.getenv("AI_PROTOCOL_PATH")
+        if env_path and not env_path.startswith(("http://", "https://")):
+            roots.append(Path(env_path))
+        cwd = Path.cwd()
+        for rel_path in _DEFAULT_SEARCH_PATHS:
+            roots.append(cwd / rel_path)
+
+        out: list[Path] = []
+        seen: set[str] = set()
+        for root in roots:
+            # Primary: published dist; degrade to fixture only if dist missing.
+            for candidate in (
+                root / "dist" / "provider-identity.json",
+                root / "v2" / "provider-identity.fixture.json",
+            ):
+                key = str(candidate)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(candidate)
+        return out
+
+    @staticmethod
+    def _canonical_from_family(family: dict[str, Any], key: str) -> str | None:
+        canonical = family.get("canonical_id")
+        if not isinstance(canonical, str):
+            return None
+        if key == canonical:
+            return canonical
+        aliases = family.get("aliases")
+        if isinstance(aliases, list) and any(
+            isinstance(alias, str) and alias == key for alias in aliases
+        ):
+            return canonical
+        return None
+
+    @classmethod
+    def _canonical_from_identity_value(cls, value: Any, key: str) -> str | None:
+        if not isinstance(value, dict):
+            return None
+        families = value.get("families")
+        if isinstance(families, list):
+            for family in families:
+                if isinstance(family, dict):
+                    canonical = cls._canonical_from_family(family, key)
+                    if canonical is not None:
+                        return canonical
+            return None
+        # Legacy single-family document (pre-005d).
+        return cls._canonical_from_family(value, key)
+
+    def _resolve_canonical_provider_id(self, key: str) -> str | None:
+        """Resolve alias → canonical id via dist/provider-identity.json."""
+        for map_path in self._identity_map_candidates():
+            if not map_path.exists():
+                continue
+            try:
+                raw = json.loads(map_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, UnicodeError):
+                continue
+            canonical = self._canonical_from_identity_value(raw, key)
+            if canonical is not None:
+                return canonical
+        return None
+
+    async def _load_provider_exact(self, provider_id: str) -> ProtocolManifest | None:
+        """Load by exact file stem. ``None`` = missing; parse errors raise."""
+        local_path = self._get_provider_path(provider_id)
+        if local_path is not None:
+            try:
+                data = self._load_file(local_path)
+                return ProtocolManifest.model_validate(data)
+            except ProtocolError:
+                raise
+            except Exception as e:
+                raise ProtocolError(
+                    f"Failed to parse provider manifest: {e}",
+                    protocol_path=str(local_path),
+                ) from e
+
+        if not self._fallback_to_github:
+            return None
+
+        # Remote degrade: published dist only (v2 → v1).
+        for remote in (
+            f"dist/v2/providers/{provider_id}.json",
+            f"dist/v1/providers/{provider_id}.json",
+        ):
+            try:
+                data = await self._load_from_github(remote)
+                return ProtocolManifest.model_validate(data)
+            except ProtocolError:
+                continue
+            except Exception:
+                continue
+        return None
+
     async def load_provider(self, provider_id: str) -> ProtocolManifest:
         """Load a provider manifest.
 
+        Resolution (PT-ARCH-005 / ALP-ID-001):
+        1. Exact match via ``dist/`` (then source degrade)
+        2. If missing: alias → canonical via ``dist/provider-identity.json``
+        3. Else fail closed
+
+        Parse/validation errors are never masked by alias fallthrough.
+
         Args:
-            provider_id: Provider identifier (e.g., "openai", "anthropic")
+            provider_id: Provider identifier (e.g., "openai", "google")
 
         Returns:
             ProtocolManifest for the provider
@@ -219,47 +325,25 @@ class ProtocolLoader:
         """
         cache_key = f"provider:{provider_id}"
 
-        # Check cache
         if self._cache_enabled and cache_key in self._cache:
             return self._cache[cache_key]
 
-        # Try local path first
-        local_path = self._get_provider_path(provider_id)
-        if local_path:
-            try:
-                data = self._load_file(local_path)
-                manifest = ProtocolManifest.model_validate(data)
-                if self._cache_enabled:
-                    self._cache[cache_key] = manifest
-                return manifest
-            except Exception as e:
-                raise ProtocolError(
-                    f"Failed to parse provider manifest: {e}",
-                    protocol_path=str(local_path),
-                ) from e
+        manifest = await self._load_provider_exact(provider_id)
+        if manifest is None:
+            canonical = self._resolve_canonical_provider_id(provider_id)
+            if canonical is not None and canonical != provider_id:
+                manifest = await self._load_provider_exact(canonical)
 
-        # Fallback to GitHub
-        if self._fallback_to_github:
-            try:
-                data = await self._load_from_github(f"dist/v2/providers/{provider_id}.json")
-            except Exception:
-                try:
-                    data = await self._load_from_github(f"dist/v1/providers/{provider_id}.json")
-                except Exception as e:
-                    raise ProtocolError(
-                        f"Provider '{provider_id}' not found locally or on GitHub: {e}",
-                        protocol_path=provider_id,
-                    ) from e
+        if manifest is None:
+            raise ProtocolError(
+                f"Provider '{provider_id}' not found "
+                f"(checked dist/ then source; alias map if present)",
+                protocol_path=provider_id,
+            )
 
-            manifest = ProtocolManifest.model_validate(data)
-            if self._cache_enabled:
-                self._cache[cache_key] = manifest
-            return manifest
-
-        raise ProtocolError(
-            f"Provider '{provider_id}' not found",
-            protocol_path=provider_id,
-        )
+        if self._cache_enabled:
+            self._cache[cache_key] = manifest
+        return manifest
 
     async def load_model(self, model_id: str) -> ProtocolManifest:
         """Load a model manifest (or its provider manifest).
