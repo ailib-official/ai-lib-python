@@ -1,25 +1,43 @@
-"""Latest generative manifest consumption tests for ai-lib-python."""
+"""Latest generative manifest consumption tests for ai-lib-python.
+
+Consumes published ``dist/v2/providers/*.json`` (not source YAML).
+"""
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
-
-import yaml
 
 from ai_lib_python.multimodal import Modality, MultimodalCapabilities
 from ai_lib_python.protocol.v2.manifest import ApiStyle, ManifestV2
 
 
 def _resolve_ai_protocol_root() -> Path:
+    env = os.environ.get("AI_PROTOCOL_DIR") or os.environ.get("AI_PROTOCOL_PATH")
     candidates = [
+        Path(env) if env else None,
         Path.cwd() / "../ai-protocol",
         Path.cwd() / "../../ai-protocol",
         Path("d:/ai-protocol"),
     ]
     for candidate in candidates:
+        if candidate is None:
+            continue
         if candidate.exists():
             return candidate.resolve()
     raise AssertionError("Unable to locate ai-protocol root")
+
+
+def _load_dist_v2_provider(root: Path, provider: str) -> ManifestV2:
+    path = root / "dist" / "v2" / "providers" / f"{provider}.json"
+    if not path.exists():
+        raise AssertionError(
+            f"Published dist missing for {provider}: {path} "
+            "(F5 consume path is dist/, not source YAML)"
+        )
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return ManifestV2.model_validate(raw)
 
 
 def test_consume_latest_v2_generative_manifests() -> None:
@@ -27,9 +45,7 @@ def test_consume_latest_v2_generative_manifests() -> None:
     providers = ("gemini", "deepseek", "qwen", "doubao")
 
     for provider in providers:
-        path = root / "v2" / "providers" / f"{provider}.yaml"
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        manifest = ManifestV2.model_validate(raw)
+        manifest = _load_dist_v2_provider(root, provider)
 
         assert manifest.is_v2, f"{provider} should parse as V2 manifest"
         assert manifest.id == provider
@@ -37,6 +53,7 @@ def test_consume_latest_v2_generative_manifests() -> None:
         assert manifest.base_url
 
         if provider == "gemini":
+            assert "google" in manifest.aliases
             assert manifest.detect_api_style() == ApiStyle.GEMINI_GENERATE
         else:
             assert manifest.detect_api_style() == ApiStyle.OPENAI_COMPATIBLE
@@ -87,9 +104,7 @@ def test_consume_wave1_v2_provider_manifests() -> None:
     providers = ("cohere", "moonshot", "zhipu", "jina")
 
     for provider in providers:
-        path = root / "v2" / "providers" / f"{provider}.yaml"
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        manifest = ManifestV2.model_validate(raw)
+        manifest = _load_dist_v2_provider(root, provider)
 
         assert manifest.is_v2, f"{provider} should parse as V2 manifest"
         assert manifest.id == provider

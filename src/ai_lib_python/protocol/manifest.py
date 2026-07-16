@@ -273,6 +273,10 @@ class ProtocolManifest(BaseModel):
 
     # Identity
     id: str = Field(description="Provider identifier")
+    aliases: list[str] = Field(
+        default_factory=list,
+        description="Alternate lookup keys (PT-ARCH-005); not used as file stems",
+    )
     protocol_version: str = Field(default="1.0", description="Protocol version")
     name: str | None = Field(default=None, description="Human-readable provider name")
     version: str | None = Field(default=None, description="Provider version")
