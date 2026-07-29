@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **ALP-ID-001**: `ProtocolLoader.load_provider` resolves marketplace aliases via multi-family `dist/provider-identity.json` (e.g. `google` → `gemini`, `kimi` → `moonshot`); parse/validation errors are not masked by alias lookup.
+- **MULTI-ALIAS-XLANG-001**: consume alias-resolve golden test (`tests/unit/test_alias_resolve_golden.py`).
+
+### Fixed
+
+- Consume `gemini.yaml` after PT-ARCH-005 provider rename.
+
+### Docs
+
+- README / README_CN aligned to public API truth at **1.0.1** (and Unreleased behaviors on `main`).
+
 ## [1.0.1] - 2026-07-11
 
 ### Fixed
@@ -676,7 +689,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mypy strict mode
 - ruff linting
 
-[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/ailib-official/ai-lib-python/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.6...v1.0.0
 [0.8.6]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.4...v0.8.5

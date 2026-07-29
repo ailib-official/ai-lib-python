@@ -1,117 +1,53 @@
 # ai-lib-python
 
-**AI-Protocol 官方 Python 运行时** — 统一 AI 模型交互的规范 Python 实现
+**[AI-Protocol](https://github.com/ailib-official/ai-protocol) 协议运行时** — 异步 Python 参考实现（v**1.0.1**）。
 
-[![PyPI Version](https://img.shields.io/pypi/v/ai-lib-python.svg)](https://pypi.org/project/ai-lib-python/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green.svg)](LICENSE)
+[English](README.md)
 
-`ai-lib-python` 是 [AI-Protocol](https://github.com/ailib-official/ai-protocol) 规范的 Python 运行时实现，体现了核心设计原则：
+`ai-lib-python` 是单包结构，在**模块层面**做执行层 / 策略层（E/P）分离。多数应用从根包导入：
 
-> **一切逻辑皆算子，一切配置皆协议**
-
-## 🎯 设计哲学
-
-与传统硬编码 Provider 逻辑的适配器库不同，`ai-lib-python` 是一个**协议驱动的运行时**：
-
-- **零硬编码** — 所有行为由协议 Manifest（YAML/JSON）驱动
-- **算子流水线** — Decoder → Selector → Accumulator → FanOut → EventMapper
-- **热重载** — 协议配置可在运行时更新，无需重启应用
-- **统一接口** — 单一 API 适配所有 Provider，开发者无需关心底层差异
-
-## 🏗️ v0.8 架构：逻辑分层
-
-从 v0.8.0 开始，`ai-lib-python` 采用**执行层/策略层逻辑分离**的架构设计。与 Rust 不同，Python 版本保持单包结构（符合 Python 生态习惯），但在模块层面清晰划分职责：
-
-```
-ai_lib_python/
-├── ─────────────────────────────────────────────────────────
-│   E 层（执行层）— 确定性执行，最小依赖
-├───────────────────────────────────────────────────────────
-│   client/          统一客户端接口
-│   protocol/        协议加载与验证
-│   pipeline/        算子流水线
-│   transport/       HTTP 传输层
-│   drivers/         Provider 驱动
-│   types/           类型系统（Message, Event, Tool）
-│   structured/      结构化输出
-│   embeddings/      嵌入向量生成
-│   mcp/             MCP 工具桥接
-│   computer_use/    Computer Use 抽象
-│   multimodal/      多模态支持
-│   stt/ / tts/      语音识别/合成
-│   rerank/          重排序
-│
-├── ─────────────────────────────────────────────────────────
-│   P 层（策略层）— 策略决策，可有状态
-├───────────────────────────────────────────────────────────
-│   routing/         模型路由
-│   cache/           响应缓存
-│   batch/           批处理执行
-│   plugins/         插件系统
-│   resilience/      弹性策略（重试/熔断/限流）
-│   telemetry/       遥测与可观测性
-│   guardrails/      输入/输出守卫
-│   tokens/          Token 计数与成本估算
-│   registry/        能力注册表
+```python
+from ai_lib_python import AiClient, Message, StreamingEvent
 ```
 
-### E/P 分层的优势
+## 工作原理
 
-| 维度 | E 层模块 | P 层模块 |
-|------|----------|----------|
-| **职责** | 确定性执行、协议加载、类型转换 | 策略决策、缓存、路由、遥测 |
-| **依赖** | 最小化，无状态 | 可有状态，依赖 E 层 |
-| **适用场景** | 边缘设备、Serverless、微服务 | 服务端、完整应用 |
+**默认聊天路径：** `AiClient` 加载 provider manifest → 按 manifest 算子构建 **`Pipeline`** → 经 **`HttpTransport`**（httpx）发 HTTP。流式帧归一为 **`StreamingEvent`**。
 
-### 安装选项
+聊天路径是协议驱动的，但并非“零厂商代码”：仓库仍包含厂商解码器/映射、可选 **`ProviderDriver`**（高级 / 测试），以及 embeddings、STT、TTS、rerank 的独立 HTTP 客户端。
+
+| 层 | 包 / 模块 | 职责 |
+|----|-----------|------|
+| 执行层 (E) | `client`、`protocol`、`pipeline`、`transport`、`types`、`structured`、可选能力模块 | 确定性执行、manifest 加载、HTTP |
+| 策略层 (P) | `resilience`、`cache`、`routing`、`plugins`、`guardrails`、`batch`、`telemetry`、`tokens`、`registry` | 重试、限流、路由、遥测 — 在客户端旁按需接入 |
+| 门面 | `ai_lib_python`（根包） | 稳定导入 + 示例 + 合规测试 |
+
+已发布至 [PyPI](https://pypi.org/project/ai-lib-python/)：**`ai-lib-python` 1.0.1**。需要 Python **3.10+**。
+
+> **说明：** Git `main` 可能包含尚未打进最近一次 PyPI 发版的协议 / 身份工作（例如 marketplace 别名解析）。请按目标 tag 锁定依赖版本；见 [CHANGELOG](CHANGELOG.md) 的 `Unreleased`。
+
+## 快速开始
 
 ```bash
-# 基础安装（包含 E 层核心能力）
 pip install ai-lib-python
-
-# 完整安装（包含所有能力）
-pip install ai-lib-python[full]
+export DEEPSEEK_API_KEY="your-key"
 ```
-
-### 能力 Extras
-
-**执行层能力**：
-- `[vision]` — 图像处理（Pillow）
-- `[audio]` — 音频处理（soundfile）
-- `[embeddings]` — 嵌入向量生成
-- `[structured]` — 结构化输出/JSON 模式
-- `[stt]` — 语音转文字
-- `[tts]` — 文字转语音
-- `[reranking]` — 文档重排序
-
-**策略层能力**：
-- `[batch]` — 批处理执行
-- `[telemetry]` — OpenTelemetry 集成
-- `[tokenizer]` — Token 计数（tiktoken）
-
-**Meta-extras**：
-- `[full]` — 启用所有能力
-- `[dev]` — 开发依赖（pytest, mypy, ruff）
-- `[docs]` — 文档构建（mkdocs）
-
-## 🚀 快速开始
-
-### 基本用法
 
 ```python
 import asyncio
 from ai_lib_python import AiClient, Message
 
-async def main():
-    # 协议驱动：支持 ai-protocol manifest 中定义的任何 provider
-    client = await AiClient.create("anthropic/claude-3-5-sonnet")
+async def main() -> None:
+    client = await AiClient.create("deepseek/deepseek-chat")
 
-    # 简单聊天
     response = await (
         client.chat()
-        .system("You are a helpful assistant.")
-        .user("Hello!")
+        .messages([
+            Message.system("You are a helpful assistant."),
+            Message.user("Hello!"),
+        ])
+        .temperature(0.7)
+        .max_tokens(500)
         .execute()
     )
 
@@ -121,188 +57,156 @@ async def main():
 asyncio.run(main())
 ```
 
-### 流式响应
+同一示例：`python examples/basic_chat.py`（需要 `OPENAI_API_KEY` 或改模型）。
+
+流式构建器也支持在 `client.chat()` 上使用 `.system()` / `.user()` 简写。
+
+### 流式
 
 ```python
 import asyncio
-from ai_lib_python import AiClient, Message
-from ai_lib_python.types.events import StreamingEvent
+from ai_lib_python import AiClient
 
-async def main():
-    client = await AiClient.create("openai/gpt-4o")
+async def main() -> None:
+    client = await AiClient.create("deepseek/deepseek-chat")
 
-    # 流式聊天
-    async for event in client.chat().user("讲一个笑话").stream():
-        if isinstance(event, StreamingEvent.PartialContentDelta):
-            print(event.content, end="", flush=True)
-        elif isinstance(event, StreamingEvent.StreamEnd):
-            print()  # 换行
+    async for event in (
+        client.chat()
+        .user("Write a haiku about Python.")
+        .stream()
+    ):
+        if event.is_content_delta:
+            print(event.as_content_delta.content, end="", flush=True)
+        elif event.is_stream_end:
+            break
 
     await client.close()
 
 asyncio.run(main())
 ```
 
-### 生产环境配置
+同一示例：`python examples/streaming.py`。
+
+### 调用统计
+
+`ChatResponse` 不内嵌统计。请使用 `execute_with_stats()` 或 `stream_with_stats()`：
 
 ```python
-from ai_lib_python import AiClient
+response, stats = await client.chat().user("Hello!").execute_with_stats()
+print(stats.latency_ms, stats.input_tokens, stats.output_tokens)
+```
 
-# 启用完整生产能力：重试、熔断、限流
+### 生产弹性（opt-in）
+
+```python
 client = await (
     AiClient.builder()
     .model("deepseek/deepseek-chat")
-    .production_ready()  # 一键启用所有弹性策略
+    .production_ready()  # ResilientConfig.production() 默认
     .build()
 )
 ```
 
-### 多模态
+`production_ready()` 接入策略层 `resilience` 模块。仅调用 `AiClient.create()` **不会**启用。
 
-```python
-from ai_lib_python import Message, MessageContent, ContentBlock
+## 公共 API（包根）
 
-# 图像 + 文本
-message = Message(
-    role="user",
-    content=MessageContent.blocks([
-        ContentBlock.text("描述这张图片"),
-        ContentBlock.image_from_file("./photo.jpg"),
-    ])
-)
+始终从 `ai_lib_python` 导出：
 
-response = await client.chat().messages([message]).execute()
-```
+- **客户端：** `AiClient`、`AiClientBuilder`、`ChatResponse`、`CallStats`
+- **类型：** `Message`、`MessageRole`、`MessageContent`、`ContentBlock`、`StreamingEvent`、`ToolCall`、`ToolDefinition`
+- **错误：** `AiLibError`、`ProtocolError`、`TransportError`
+- **特性探测：** `HAS_VISION`、`HAS_AUDIO`、`HAS_TELEMETRY`、`HAS_TOKENIZER`、`HAS_WATCHDOG`、`HAS_KEYRING`、`require_extra`
+- **版本：** `__version__`（来自已安装发行版元数据）
 
-## 🔧 配置
+子包（按需显式导入）：
 
-### 协议 Manifest 搜索路径
+- **执行层：** `ai_lib_python.pipeline`、`protocol`、`transport`、`structured`、`embeddings`、`stt`、`tts`、`rerank`、`multimodal`、`mcp`、`computer_use`
+- **扩展类型：** `ai_lib_python.types` — `ExecutionResult`、`ExecutionMetadata`、`ExecutionUsage`，以及 text-tool / TTC（`StandardTextToolParser`、`ToolCallingPolicy`、`TextToolConfig` 等）
+- **策略层：** `ai_lib_python.resilience`、`cache`、`routing`、`plugins`、`guardrails`、`batch`、`telemetry`、`tokens`、`registry`
+- **高级：** `ai_lib_python.drivers` — `ProviderDriver`、`create_driver`（默认 `AiClient` 聊天路径不使用）
 
-运行时按以下顺序查找协议配置：
+### extras 实际提供什么
 
-1. `AI_PROTOCOL_DIR` / `AI_PROTOCOL_PATH` 环境变量
-2. 常见开发路径：`ai-protocol/`、`../ai-protocol/`、`../../ai-protocol/`
-3. 最终兜底：GitHub raw `ailib-official/ai-protocol`
-
-### API 密钥
-
-**推荐方式**（生产环境）：
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-export OPENAI_API_KEY="sk-..."
-export DEEPSEEK_API_KEY="sk-..."
-```
-
-**可选方式**（本地开发）：操作系统密钥环（需安装 `keyring` 包）
-
-### 环境变量
+| Extra | 获得什么 | 说明 |
+|-------|----------|------|
+| `vision` | 基于 Pillow 的图像块 | `HAS_VISION` |
+| `audio` | 音频辅助（`soundfile`） | `HAS_AUDIO` |
+| `embeddings` | `EmbeddingClient` | 协议化构建：`from_model` / `from_manifest`（无静默 OpenAI 主机默认） |
+| `structured` | 结构化 / JSON 模式辅助 | 标记型 extra（代码本身可导入） |
+| `stt` / `tts` / `reranking` | `SttClient`、`TtsClient`、`RerankerClient` | 独立服务客户端；rerank 支持 `from_model` / `from_manifest` |
+| `batch` / `agentic` | 批处理 / agentic 标记 | 策略 / 能力标记 |
+| `contact` | 策略层安装标记 | 路由、弹性、守卫、批处理、插件、遥测 — 物理拆包暂缓 |
+| `telemetry` | OpenTelemetry sinks | `HAS_TELEMETRY`；反馈类型在 `telemetry` 子包 |
+| `tokenizer` | Token 计数（tiktoken） | `HAS_TOKENIZER` |
+| `full` | 全部能力 extras + `watchdog` + `keyring` | 含 `contact` |
+| `dev` / `docs` / `jupyter` | 仅工具链 | pytest/mypy/ruff；mkdocs；ipywidgets |
 
 ```bash
-# 代理
-export AI_PROXY_URL="http://user:pass@host:port"
-
-# 超时
-export AI_HTTP_TIMEOUT_SECS=30
-
-# 并发限制
-export AI_LIB_MAX_INFLIGHT=10
-
-# 速率限制
-export AI_LIB_RPS=5  # 或 AI_LIB_RPM=300
+pip install ai-lib-python[full]
 ```
 
-### HTTP 代理（与 ai-lib-rust 跨运行时对齐）
+多数 extras 是**标记**（依赖列表为空）：模块已在 wheel 中；安装 extra 用于显式能力契约，或在需要真实依赖时使用（`vision`、`audio`、`telemetry`、`tokenizer`、`full`）。
 
-| 变量 | 作用 |
+### 能力边界（如实说明）
+
+| 区域 | 包内已有 | 不包含 |
+|------|----------|--------|
+| **MCP**（`mcp` 模块） | `McpToolBridge` 格式转换 | 接入 `AiClient` 的 MCP 服务端传输 |
+| **Computer Use**（`computer_use`） | `ComputerAction`、`SafetyPolicy` 校验 | 截图 / 输入执行环境 |
+| **热重载** | `AiClientBuilder.hot_reload()` 标志 + 内存缓存；`ProtocolLoader.clear_cache()` | 自动文件监视（需 `watchdog`；`HAS_WATCHDOG`）— 当前无自动重载 |
+| **`ProviderDriver`** | 公开 `drivers` 模块 | 默认 `AiClient` 聊天路径 |
+| **限流环境变量** | 经 `AiClientBuilder` / `resilience` 配置 | 运行时**不读取** `AI_LIB_RPS` / `AI_LIB_RPM` |
+
+## 高级：`ProviderDriver`
+
+`ai_lib_python.drivers` 提供 `ProviderDriver`、`create_driver` 以及 OpenAI / Anthropic / Gemini 驱动。**`AiClient` 聊天不走该路径**；它使用 manifest 构建的 `Pipeline`。驱动用于合规测试与自定义集成。
+
+## 弹性
+
+- **内置于 `AiClient`：** 可选 `max_inflight` 背压（builder 或 `AI_LIB_MAX_INFLIGHT`）。
+- **策略层 opt-in：** `ai_lib_python.resilience`（重试、限流、熔断）— 使用 `production_ready()` 或显式 `ResilientConfig`。
+- **`AiClient.create()` 默认不启用。**
+
+## 协议 Manifest
+
+解析顺序：
+
+1. `AiClientBuilder.protocol_path(...)` / `ProtocolLoader(base_path=...)`
+2. `AI_PROTOCOL_DIR` / `AI_PROTOCOL_PATH`（本地目录；远程加载支持 GitHub raw URL）
+3. 开发路径：`ai-protocol/`、`../ai-protocol/`、…
+4. 兜底：GitHub raw `ailib-official/ai-protocol`（`main`）
+
+每个 base path：`dist/v2/providers/<id>.json` → `dist/v1/providers/<id>.json` → 源码树 `v2` / `v1` YAML/JSON 降级。
+
+**身份 / 别名（在 `main` 上，见 Unreleased）：** `load_provider` 通过 `dist/provider-identity.json`（多 family 映射）解析 marketplace 别名，例如 `google` → `gemini`、`kimi` → `moonshot`。解析/校验错误不会被别名查找掩盖。
+
+Manifest 缓存：仅内存。`hot_reload=True` 只保存标志，**不监视文件** — 变更后请调用 `ProtocolLoader.clear_cache()` 或重建客户端。
+
+## API 密钥（BYOK 链）
+
+1. builder / `AiClient.create(..., api_key=...)` 显式覆盖
+2. Manifest 声明的环境变量（`endpoint.auth` / 顶层 `auth`）
+3. `<PROVIDER_ID>_API_KEY`（CI/容器推荐）
+4. 已安装 `keyring` 时的操作系统密钥环（`HAS_KEYRING`；含于 `[full]`）
+
+## 环境变量
+
+| 变量 | 用途 |
 |------|------|
-| `AI_PROXY_URL` | 显式代理 URL；仅在 `AI_HTTP_TRUST_ENV=1` 时生效（此时 httpx 才会按 `trust_env` 读取系统代理）。 |
-| `HTTP_PROXY` / `HTTPS_PROXY` | 标准环境变量；Rust 侧会与 `AI_PROXY_URL` 合并为候选路由。Python 侧需 `AI_HTTP_TRUST_ENV=1` 才会启用，避免本地/Mock 流量误走代理。 |
-| `NO_PROXY` / `AI_PROXY_NO_PROXY` | 逗号分隔、不走代理的主机列表（应包含 Mock 主机名、需直连的 API 主机及 `127.0.0.1`）。Rust 文档中的 `AI_PROXY_NO_PROXY` 与之对应。 |
+| `AI_PROTOCOL_DIR` / `AI_PROTOCOL_PATH` | 本地 manifest 目录或 GitHub raw 基址 |
+| `AI_PROXY_URL` | 显式代理（需 `AI_HTTP_TRUST_ENV=1`） |
+| `HTTP_PROXY` / `HTTPS_PROXY` | 标准代理变量（需 `AI_HTTP_TRUST_ENV=1`） |
+| `NO_PROXY` / `AI_PROXY_NO_PROXY` | 不走代理的主机 |
+| `AI_HTTP_TIMEOUT_SECS` | HTTP 超时 |
+| `AI_LIB_MAX_INFLIGHT` | 并发背压（也可经 builder） |
 
-使用代理时：在 `NO_PROXY` 中包含 Mock 所在主机（例如 `NO_PROXY=192.168.2.13,localhost,127.0.0.1`）。
+跨运行时代理语义：[CROSS_RUNTIME.md](https://github.com/ailib-official/ai-protocol/blob/main/docs/CROSS_RUNTIME.md)。
 
-或在代码中：`AiClient.create("openai/gpt-4o", base_url="http://localhost:4010")`。
+## 标准错误码（V2）
 
-跨运行时统一语义见 [CROSS_RUNTIME.md](https://github.com/ailib-official/ai-protocol/blob/main/docs/CROSS_RUNTIME.md)。
-
-## 🧪 测试
-
-### 单元测试
-
-```bash
-# 运行所有测试
-pytest tests/ -v
-
-# 仅运行单元测试
-pytest tests/unit/ -v
-```
-
-### 兼容性测试（跨运行时一致性）
-
-先安装测试依赖（`pytest` 不是默认运行时依赖）：
-
-```bash
-python -m pip install -e ".[dev]"
-```
-
-```bash
-# 运行兼容性测试
-python -m pytest tests/compliance/ -v
-
-# 指定兼容性测试目录（POSIX）
-COMPLIANCE_DIR=../ai-protocol/tests/compliance python -m pytest tests/compliance/ -v
-
-# Windows PowerShell
-$env:COMPLIANCE_DIR = "D:\ai-protocol\tests\compliance"
-python -m pytest tests/compliance/ -v
-
-# Wave-5 仅执行层子集（跳过偏重弹性的用例）
-$env:COMPLIANCE_SUBSET = "e_only"   # PowerShell
-# COMPLIANCE_SUBSET=e_only python -m pytest tests/compliance/ -v   # POSIX
-python -m pytest tests/compliance/ -v
-```
-
-### 使用 Mock 服务器测试
-
-```bash
-# 启动 ai-protocol-mock
-docker-compose up -d
-
-# 使用 mock 运行测试
-MOCK_HTTP_URL=http://localhost:4010 pytest tests/integration/ -v
-```
-
-## 📊 可观测性
-
-### 调用统计
-
-```python
-response = await client.chat().user("Hello").execute()
-print(f"request_id: {response.stats.request_id}")
-print(f"latency_ms: {response.stats.latency_ms}")
-print(f"tokens: {response.usage}")
-```
-
-### 遥测反馈（opt-in）
-
-```python
-from ai_lib_python.telemetry import FeedbackEvent, ChoiceSelectionFeedback
-
-await client.report_feedback(
-    FeedbackEvent.ChoiceSelection(
-        request_id=response.stats.request_id,
-        chosen_index=0,
-    )
-)
-```
-
-## 🔄 错误码（V2 规范）
-
-所有 Provider 错误归一化为 13 个标准错误码：
-
-| 错误码 | 名称 | 可重试 | 可回退 |
-|--------|------|--------|--------|
+| 码 | 名称 | 可重试 | 可回退 |
+|----|------|--------|--------|
 | E1001 | `invalid_request` | 否 | 否 |
 | E1002 | `authentication` | 否 | 是 |
 | E1003 | `permission_denied` | 否 | 否 |
@@ -317,46 +221,51 @@ await client.report_feedback(
 | E4002 | `cancelled` | 否 | 否 |
 | E9999 | `unknown` | 否 | 否 |
 
-## 🤝 社区与贡献
+## 测试
 
-### 适用场景
+```bash
+pip install -e ".[dev]"
+pytest tests/unit/ -v
+```
 
-- **服务端应用** — 使用 `pip install ai-lib-python[full]` 获得完整能力
-- **边缘/Serverless** — 基础安装即可，按需添加 extras
-- **微服务** — 结合 telemetry 实现分布式追踪
+合规（跨运行时 YAML）：
 
-### 贡献指南
+```bash
+# POSIX
+COMPLIANCE_DIR=../ai-protocol/tests/compliance pytest tests/compliance/ -v
 
-1. 代码需通过 `ruff` 检查和 `mypy` 类型检查
-2. 新功能需包含测试，兼容性测试必须通过
-3. 遵循 [Python 类型提示最佳实践](https://typing.readthedocs.io/)
+# Windows PowerShell
+$env:COMPLIANCE_DIR = "D:\ai-protocol\tests\compliance"
+pytest tests/compliance/ -v
+```
 
-### 行为准则
+Mock 集成（需要 [ai-protocol-mock](https://github.com/ailib-official/ai-protocol-mock)）：
 
-- 尊重所有贡献者
-- 欢迎不同背景的参与者
-- 专注于技术讨论，避免人身攻击
-- 发现问题请通过 GitHub Issues 反馈
+```bash
+MOCK_HTTP_URL=http://localhost:4010 pytest tests/integration/ -v
+```
 
-## 🔗 相关项目
+## 示例
 
-| 项目 | 说明 |
+| 示例 | 主题 |
 |------|------|
-| [AI-Protocol](https://github.com/ailib-official/ai-protocol) | 协议规范（v1.5 / V2） |
-| [ai-lib-rust](https://github.com/ailib-official/ai-lib-rust) | Rust 运行时 |
-| [ai-lib-ts](https://github.com/ailib-official/ai-lib-ts) | TypeScript 运行时 |
-| [ai-lib-go](https://github.com/ailib-official/ai-lib-go) | Go 运行时 |
-| [ai-protocol-mock](https://github.com/ailib-official/ai-protocol-mock) | Mock 服务器 |
+| `basic_chat.py` | 快速开始、`execute_with_stats` |
+| `streaming.py` | `is_content_delta`、`stream_with_stats` |
+| `resilience.py` | 策略层 |
+| `multimodal.py` | Vision extra |
+| `tool_calling.py` | Tools |
+| `multi_provider_production.py` | 路由 / 回退 |
+| `guardrails_production.py` | Guardrails |
+| `concurrent_production.py` | 并发 |
+| `providers.py` | Provider 切换 |
 
-## 📄 许可证
+## 相关
 
-本项目采用双许可证：
+- [AI-Protocol](https://github.com/ailib-official/ai-protocol) — 规范与 manifests
+- [ai-lib-rust](https://github.com/ailib-official/ai-lib-rust) — Rust 运行时
+- [ai-lib-ts](https://github.com/ailib-official/ai-lib-ts) — TypeScript 运行时
+- [ai-lib-go](https://github.com/ailib-official/ai-lib-go) — Go 运行时
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT License ([LICENSE-MIT](LICENSE-MIT))
+## 许可证
 
-您可任选其一。
-
----
-
-**ai-lib-python** — 协议与 Pythonic 的完美结合 🚀
+双许可：[Apache-2.0](LICENSE-APACHE) 或 [MIT](LICENSE-MIT)。

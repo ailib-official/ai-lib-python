@@ -1,6 +1,8 @@
 # ai-lib-python
 
-**Protocol runtime for [AI-Protocol](https://github.com/ailib-official/ai-protocol)** — async Python reference implementation (v**1.0.0**).
+**Protocol runtime for [AI-Protocol](https://github.com/ailib-official/ai-protocol)** — async Python reference implementation (v**1.0.1**).
+
+[中文文档](README_CN.md)
 
 `ai-lib-python` is a single package with **execution / policy module separation** (E/P at the module level). Most apps import from the root:
 
@@ -17,10 +19,12 @@ This is protocol-driven for chat, but not “zero provider code”: the repo als
 | Layer | Packages / modules | Responsibility |
 |-------|-------------------|----------------|
 | Execution (E) | `client`, `protocol`, `pipeline`, `transport`, `types`, `structured`, optional capability modules | Deterministic execution, manifest loading, HTTP |
-| Policy (P) | `resilience`, `cache`, `routing`, `plugins`, `guardrails`, `batch`, `telemetry`, `tokens` | Retry, rate limits, routing, telemetry — opt-in beside the client |
+| Policy (P) | `resilience`, `cache`, `routing`, `plugins`, `guardrails`, `batch`, `telemetry`, `tokens`, `registry` | Retry, rate limits, routing, telemetry — opt-in beside the client |
 | Facade | `ai_lib_python` (root) | Stable imports + examples + compliance tests |
 
-Published on [PyPI](https://pypi.org/project/ai-lib-python/): **`ai-lib-python` 1.0.0**. Python **3.10+**.
+Published on [PyPI](https://pypi.org/project/ai-lib-python/): **`ai-lib-python` 1.0.1**. Python **3.10+**.
+
+> **Note:** Git `main` may include protocol/identity work landed after the last PyPI cut (e.g. marketplace alias resolve). Match dependency versions to the tag you intend; see [CHANGELOG](CHANGELOG.md) `Unreleased`.
 
 ## Quick start
 
@@ -113,10 +117,12 @@ Always exported from `ai_lib_python`:
 - **Types:** `Message`, `MessageRole`, `MessageContent`, `ContentBlock`, `StreamingEvent`, `ToolCall`, `ToolDefinition`
 - **Errors:** `AiLibError`, `ProtocolError`, `TransportError`
 - **Feature probes:** `HAS_VISION`, `HAS_AUDIO`, `HAS_TELEMETRY`, `HAS_TOKENIZER`, `HAS_WATCHDOG`, `HAS_KEYRING`, `require_extra`
+- **Version:** `__version__` (from installed distribution metadata)
 
 Subpackages (import explicitly when needed):
 
 - **Execution:** `ai_lib_python.pipeline`, `protocol`, `transport`, `structured`, `embeddings`, `stt`, `tts`, `rerank`, `multimodal`, `mcp`, `computer_use`
+- **Types (extended):** `ai_lib_python.types` — `ExecutionResult`, `ExecutionMetadata`, `ExecutionUsage`, text-tool / TTC (`StandardTextToolParser`, `ToolCallingPolicy`, `TextToolConfig`, …)
 - **Policy:** `ai_lib_python.resilience`, `cache`, `routing`, `plugins`, `guardrails`, `batch`, `telemetry`, `tokens`, `registry`
 - **Advanced:** `ai_lib_python.drivers` — `ProviderDriver`, `create_driver` (not used by default `AiClient` chat path)
 
@@ -125,19 +131,22 @@ Subpackages (import explicitly when needed):
 | Extra | What you get | Notes |
 |-------|--------------|-------|
 | `vision` | Pillow-backed image blocks | Marked via `HAS_VISION` |
-| `audio` | Audio helpers | `HAS_AUDIO` |
-| `embeddings` | `EmbeddingClient` | Standalone HTTP client |
-| `structured` | Structured / JSON mode helpers | |
-| `stt` / `tts` / `reranking` | `SttClient`, `TtsClient`, `RerankerClient` | Standalone service clients |
-| `batch` | Batch collector / executor | Policy layer |
-| `telemetry` | OpenTelemetry sinks, `report_feedback` | `FeedbackEvent` types in subpackage |
+| `audio` | Audio helpers (`soundfile`) | `HAS_AUDIO` |
+| `embeddings` | `EmbeddingClient` | Protocolized builders: `from_model` / `from_manifest` (no silent OpenAI host default) |
+| `structured` | Structured / JSON mode helpers | Marker extra (code always importable) |
+| `stt` / `tts` / `reranking` | `SttClient`, `TtsClient`, `RerankerClient` | Standalone service clients; rerank supports `from_model` / `from_manifest` |
+| `batch` / `agentic` | Batch / agentic markers | Policy / capability markers |
+| `contact` | Policy-layer install marker | Routing, resilience, guardrails, batch, plugins, telemetry — physical split deferred |
+| `telemetry` | OpenTelemetry sinks | `HAS_TELEMETRY`; feedback types in `telemetry` subpackage |
 | `tokenizer` | Token counting (tiktoken) | `HAS_TOKENIZER` |
-| `full` | All extras above | |
-| `dev` | pytest, mypy, ruff | Development only |
+| `full` | All capability extras + `watchdog` + `keyring` | Includes `contact` |
+| `dev` / `docs` / `jupyter` | Tooling only | pytest/mypy/ruff; mkdocs; ipywidgets |
 
 ```bash
 pip install ai-lib-python[full]
 ```
+
+Many extras are **markers** (empty dependency lists): the modules ship in the wheel; install the extra when you want an explicit capability contract or when real deps are needed (`vision`, `audio`, `telemetry`, `tokenizer`, `full`).
 
 ### Honest capability boundaries
 
@@ -145,7 +154,7 @@ pip install ai-lib-python[full]
 |------|----------------|--------------|
 | **MCP** (`mcp` module) | `McpToolBridge` format conversion | MCP server transport wired into `AiClient` |
 | **Computer Use** (`computer_use`) | `ComputerAction`, `SafetyPolicy` validation | Screenshot / input execution environment |
-| **Hot reload** | `AiClientBuilder.hot_reload()` flag + in-memory cache | File watching (needs `watchdog`; `HAS_WATCHDOG`) — no automatic reload today |
+| **Hot reload** | `AiClientBuilder.hot_reload()` flag + in-memory cache; `ProtocolLoader.clear_cache()` | Automatic file watching (needs `watchdog`; `HAS_WATCHDOG`) — no auto-reload today |
 | **`ProviderDriver`** | Public `drivers` module | Default `AiClient` chat path |
 | **Rate limit env** | Configure via `AiClientBuilder` / `resilience` | `AI_LIB_RPS` / `AI_LIB_RPM` are **not** read by the runtime |
 
@@ -155,7 +164,7 @@ pip install ai-lib-python[full]
 
 ## Resilience
 
-- **Built into `AiClient`:** optional `max_inflight` backpressure via builder.
+- **Built into `AiClient`:** optional `max_inflight` backpressure via builder (also `AI_LIB_MAX_INFLIGHT`).
 - **Opt-in policy layer:** `ai_lib_python.resilience` (retry, rate limiter, circuit breaker) — use `production_ready()` or explicit `ResilientConfig`.
 - **Not auto-enabled** on `AiClient.create()`.
 
@@ -164,18 +173,22 @@ pip install ai-lib-python[full]
 Resolution order:
 
 1. `AiClientBuilder.protocol_path(...)` / `ProtocolLoader(base_path=...)`
-2. `AI_PROTOCOL_DIR` / `AI_PROTOCOL_PATH`
+2. `AI_PROTOCOL_DIR` / `AI_PROTOCOL_PATH` (local dir; GitHub raw URL supported for remote load)
 3. Dev paths: `ai-protocol/`, `../ai-protocol/`, …
 4. Fallback: GitHub raw `ailib-official/ai-protocol` (`main`)
 
-Per base path: `dist/v2/providers/<id>.json` → `v2/providers/<id>.yaml` → V1 equivalents.
+Per base path: `dist/v2/providers/<id>.json` → `dist/v1/providers/<id>.json` → source `v2` / `v1` YAML/JSON degrade.
+
+**Identity / aliases (on `main`, see Unreleased):** `load_provider` resolves marketplace aliases via `dist/provider-identity.json` (multi-family map), e.g. `google` → `gemini`, `kimi` → `moonshot`. Parse/validation errors are not masked by alias lookup.
+
+Manifest cache: in-memory. `hot_reload=True` stores a flag but does **not** watch files — call `ProtocolLoader.clear_cache()` or rebuild the client after manifest changes.
 
 ## API keys (BYOK chain)
 
 1. Explicit override on builder / `AiClient.create(..., api_key=...)`
-2. Manifest-declared env from `endpoint.auth`
+2. Manifest-declared env from `endpoint.auth` / top-level `auth`
 3. `<PROVIDER_ID>_API_KEY` (recommended for CI/containers)
-4. OS keyring when `keyring` is installed (`HAS_KEYRING`)
+4. OS keyring when `keyring` is installed (`HAS_KEYRING`; included in `[full]`)
 
 ## Environment variables
 
