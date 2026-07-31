@@ -113,3 +113,7 @@ work/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local CodeGraph index (do not commit)
+.codegraph/
+
