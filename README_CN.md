@@ -1,6 +1,6 @@
 # ai-lib-python
 
-**[AI-Protocol](https://github.com/ailib-official/ai-protocol) 协议运行时** — 异步 Python 参考实现（v**1.0.1**）。
+**[AI-Protocol](https://github.com/ailib-official/ai-protocol) 协议运行时** — 异步 Python 参考实现（v**1.1.0**）。
 
 [English](README.md)
 
@@ -22,7 +22,7 @@ from ai_lib_python import AiClient, Message, StreamingEvent
 | 策略层 (P) | `resilience`、`cache`、`routing`、`plugins`、`guardrails`、`batch`、`telemetry`、`tokens`、`registry` | 重试、限流、路由、遥测 — 在客户端旁按需接入 |
 | 门面 | `ai_lib_python`（根包） | 稳定导入 + 示例 + 合规测试 |
 
-已发布至 [PyPI](https://pypi.org/project/ai-lib-python/)：**`ai-lib-python` 1.0.1**。需要 Python **3.10+**。
+已发布至 [PyPI](https://pypi.org/project/ai-lib-python/)：**`ai-lib-python` 1.1.0**。需要 Python **3.10+**。
 
 > **说明：** Git `main` 可能包含尚未打进最近一次 PyPI 发版的协议 / 身份工作（例如 marketplace 别名解析）。请按目标 tag 锁定依赖版本；见 [CHANGELOG](CHANGELOG.md) 的 `Unreleased`。
 
