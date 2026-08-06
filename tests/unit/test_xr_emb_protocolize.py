@@ -7,6 +7,9 @@ import pytest
 from ai_lib_python.embeddings.client import EmbeddingClient
 from ai_lib_python.protocol.manifest import ProtocolManifest
 from ai_lib_python.rerank.client import RerankerClient, _rerank_path_from_manifest
+from ai_lib_python.stt.client import SttClient
+from ai_lib_python.transport.http import HttpTransport
+from ai_lib_python.tts.client import TtsClient
 
 
 def _minimal_manifest(**extra: object) -> ProtocolManifest:
@@ -46,12 +49,44 @@ async def test_rerank_from_manifest_uses_base_and_path(monkeypatch: pytest.Monke
     manifest = _minimal_manifest(endpoints={"rerank": {"path": "/v2/rerank", "method": "POST"}})
     client = await RerankerClient.builder().from_manifest(manifest, "rerank-english-v3").build()
     assert client.model == "rerank-english-v3"
-    assert client._base_url == "https://example.test/v1"
+    assert client._transport._base_url == "https://example.test/v1"
     assert client._endpoint_path == "/v2/rerank"
+    assert type(client._transport).__name__ == "HttpTransport"
 
 
 def test_rerank_path_fallback() -> None:
     assert _rerank_path_from_manifest(_minimal_manifest()) == "/rerank"
+
+
+@pytest.mark.asyncio
+async def test_stt_builder_uses_http_transport() -> None:
+    client = await (
+        SttClient.builder().model("whisper-1").api_key("k").base_url("https://api.openai.com").build()
+    )
+    assert isinstance(client._transport, HttpTransport)
+    assert client._transport._base_url == "https://api.openai.com"
+
+
+@pytest.mark.asyncio
+async def test_tts_builder_uses_http_transport() -> None:
+    client = await (
+        TtsClient.builder().model("tts-1").api_key("k").base_url("https://api.openai.com").build()
+    )
+    assert isinstance(client._transport, HttpTransport)
+    assert client._transport._base_url == "https://api.openai.com"
+
+
+@pytest.mark.asyncio
+async def test_rerank_explicit_uses_http_transport() -> None:
+    client = await (
+        RerankerClient.builder()
+        .model("rerank-v3")
+        .api_key("k")
+        .base_url("https://example.test")
+        .build()
+    )
+    assert isinstance(client._transport, HttpTransport)
+    assert client._transport._base_url == "https://example.test"
 
 
 @pytest.mark.asyncio

@@ -2,8 +2,9 @@
 
 Rerank client for document relevance scoring.
 
-Aligned with XR-EMB-PROTOCOLIZE-CONTRACT / ai-lib-rust AR-REVIEW-002:
-base_url + path + credentials come from protocol manifests or explicit overrides —
+HTTP uses shared [`HttpTransport`] — same stack as chat/embeddings ([GOV-007]).
+Aligned with XR-EMB-PROTOCOLIZE-CONTRACT / ai-lib-rust:
+base_url + path + credentials from protocol manifests or explicit overrides —
 no silent Cohere host default ([ARCH-001]).
 """
 
@@ -12,9 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import httpx
-
 from ai_lib_python.protocol.loader import ProtocolLoader
+from ai_lib_python.transport import HttpTransport
 from ai_lib_python.transport.auth import resolve_credential
 
 if TYPE_CHECKING:
@@ -65,19 +65,15 @@ class RerankerClient:
     def __init__(
         self,
         *,
+        transport: HttpTransport,
         model: str,
-        api_key: str,
-        base_url: str,
         endpoint_path: str = "/rerank",
-        timeout: float = 60.0,
     ) -> None:
+        self._transport = transport
         self._model = model
-        self._api_key = api_key
-        self._base_url = base_url.rstrip("/")
         self._endpoint_path = (
             endpoint_path if endpoint_path.startswith("/") else f"/{endpoint_path}"
         )
-        self._timeout = timeout
 
     @classmethod
     def builder(cls) -> RerankerClientBuilder:
@@ -92,7 +88,6 @@ class RerankerClient:
     ) -> list[RerankResult]:
         """Rerank documents by relevance to query."""
         opts = options or RerankOptions()
-        endpoint = f"{self._base_url}{self._endpoint_path}"
         body: dict[str, str | int | list[str]] = {
             "model": self._model,
             "query": query,
@@ -103,16 +98,7 @@ class RerankerClient:
         if opts.max_tokens_per_doc is not None:
             body["max_tokens_per_doc"] = opts.max_tokens_per_doc
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(
-                endpoint,
-                json=body,
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-        response.raise_for_status()
+        response = await self._transport.post(self._endpoint_path, json=body)
         data = response.json()
         results = data.get("results", [])
         return [
@@ -128,6 +114,9 @@ class RerankerClient:
     def model(self) -> str:
         return self._model
 
+    async def close(self) -> None:
+        await self._transport.close()
+
 
 class RerankerClientBuilder:
     """Builder for RerankerClient (XR-EMB contract)."""
@@ -139,6 +128,7 @@ class RerankerClientBuilder:
         self._endpoint_path: str | None = None
         self._timeout: float = 60.0
         self._protocol_path: str | None = None
+        self._manifest: ProtocolManifest | None = None
 
     def model(self, model: str) -> RerankerClientBuilder:
         self._model = model
@@ -179,6 +169,7 @@ class RerankerClientBuilder:
         if self._endpoint_path is None:
             self._endpoint_path = _rerank_path_from_manifest(manifest)
         self._model = model_id
+        self._manifest = manifest
         return self
 
     async def from_model(self, model: str) -> RerankerClient:
@@ -211,10 +202,24 @@ class RerankerClientBuilder:
                 "explicitly (no vendor default)"
             )
         endpoint_path = self._endpoint_path or "/rerank"
+
+        if self._manifest is not None:
+            transport = HttpTransport(
+                manifest=self._manifest,
+                model_id=model,
+                api_key=api_key,
+                base_url_override=base_url,
+                timeout=self._timeout,
+            )
+        else:
+            transport = HttpTransport.with_explicit_bearer(
+                base_url=base_url,
+                api_key=api_key,
+                model_id=model,
+                timeout=self._timeout,
+            )
         return RerankerClient(
+            transport=transport,
             model=model,
-            api_key=api_key,
-            base_url=base_url,
             endpoint_path=endpoint_path,
-            timeout=self._timeout,
         )

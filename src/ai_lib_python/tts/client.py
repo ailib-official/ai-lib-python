@@ -1,6 +1,8 @@
 """TTS 客户端：用于文本转语音调用。
 
 TTS (Text-to-Speech) client.
+
+HTTP uses shared [`HttpTransport`] — same stack as chat/embeddings ([GOV-007]).
 """
 
 from __future__ import annotations
@@ -8,8 +10,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
 
-import httpx
+from ai_lib_python.transport import HttpTransport
+
+if TYPE_CHECKING:
+    from ai_lib_python.protocol.manifest import ProtocolManifest
 
 
 class AudioFormat(str, Enum):
@@ -58,19 +64,15 @@ class TtsClient:
     def __init__(
         self,
         *,
+        transport: HttpTransport,
         model: str,
-        api_key: str,
-        base_url: str = "https://api.openai.com",
         endpoint_path: str = "/v1/audio/speech",
-        timeout: float = 60.0,
     ) -> None:
+        self._transport = transport
         self._model = model
-        self._api_key = api_key
-        self._base_url = base_url.rstrip("/")
         self._endpoint_path = (
             endpoint_path if endpoint_path.startswith("/") else f"/{endpoint_path}"
         )
-        self._timeout = timeout
 
     @classmethod
     def builder(cls) -> TtsClientBuilder:
@@ -78,19 +80,10 @@ class TtsClient:
         return TtsClientBuilder()
 
     async def synthesize(self, text: str, options: TtsOptions | None = None) -> AudioOutput:
-        """Synthesize text to audio.
-
-        Args:
-            text: Text to synthesize
-            options: Optional TTS options
-
-        Returns:
-            AudioOutput with raw bytes and format
-        """
+        """Synthesize text to audio."""
         opts = options or TtsOptions()
-        endpoint = f"{self._base_url}{self._endpoint_path}"
         body: dict[str, str | float] = {
-            "model": self.model,
+            "model": self._model,
             "input": text,
         }
         if opts.voice:
@@ -100,16 +93,7 @@ class TtsClient:
         if opts.response_format:
             body["response_format"] = opts.response_format
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(
-                endpoint,
-                json=body,
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-        response.raise_for_status()
+        response = await self._transport.post(self._endpoint_path, json=body)
         data = response.content
         fmt = (
             AudioFormat.from_str(opts.response_format) if opts.response_format else AudioFormat.Mp3
@@ -118,8 +102,10 @@ class TtsClient:
 
     @property
     def model(self) -> str:
-        """Get the model identifier."""
         return self._model
+
+    async def close(self) -> None:
+        await self._transport.close()
 
 
 class TtsClientBuilder:
@@ -131,6 +117,7 @@ class TtsClientBuilder:
         self._base_url: str | None = None
         self._endpoint_path: str | None = None
         self._timeout: float = 60.0
+        self._manifest: ProtocolManifest | None = None
 
     def model(self, model: str) -> TtsClientBuilder:
         self._model = model
@@ -140,11 +127,11 @@ class TtsClientBuilder:
         self._api_key = api_key
         return self
 
-    def base_url(self, url: str | None) -> TtsClientBuilder:
+    def base_url(self, url: str) -> TtsClientBuilder:
         self._base_url = url
         return self
 
-    def endpoint_path(self, path: str | None) -> TtsClientBuilder:
+    def endpoint_path(self, path: str) -> TtsClientBuilder:
         self._endpoint_path = path
         return self
 
@@ -152,20 +139,41 @@ class TtsClientBuilder:
         self._timeout = timeout
         return self
 
+    def from_manifest(self, manifest: ProtocolManifest, model_id: str) -> TtsClientBuilder:
+        from ai_lib_python.transport.auth import resolve_credential
+
+        resolved = resolve_credential(manifest.id, manifest, self._api_key)
+        if not resolved.secret:
+            raise ValueError(f"API key required for TTS (provider={manifest.id})")
+        self._api_key = resolved.secret
+        self._base_url = self._base_url or manifest.endpoint.base_url
+        self._model = model_id
+        self._manifest = manifest
+        return self
+
     async def build(self) -> TtsClient:
-        """Build the TTS client."""
         model = self._model
         if not model:
             raise ValueError("Model must be specified")
         api_key = self._api_key or os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError("API key required (OPENAI_API_KEY)")
+            raise ValueError("API key required")
         base_url = self._base_url or "https://api.openai.com"
         endpoint_path = self._endpoint_path or "/v1/audio/speech"
-        return TtsClient(
-            model=model,
-            api_key=api_key,
-            base_url=base_url,
-            endpoint_path=endpoint_path,
-            timeout=self._timeout,
-        )
+
+        if self._manifest is not None:
+            transport = HttpTransport(
+                manifest=self._manifest,
+                model_id=model,
+                api_key=api_key,
+                base_url_override=base_url,
+                timeout=self._timeout,
+            )
+        else:
+            transport = HttpTransport.with_explicit_bearer(
+                base_url=base_url,
+                api_key=api_key,
+                model_id=model,
+                timeout=self._timeout,
+            )
+        return TtsClient(transport=transport, model=model, endpoint_path=endpoint_path)

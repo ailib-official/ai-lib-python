@@ -157,20 +157,27 @@ class HttpTransport:
             await self._client.aclose()
             self._client = None
 
-    def _build_headers(self, extra_headers: dict[str, str] | None = None) -> dict[str, str]:
+    def _build_headers(
+        self,
+        extra_headers: dict[str, str] | None = None,
+        *,
+        for_multipart: bool = False,
+    ) -> dict[str, str]:
         """Build request headers.
 
         Args:
             extra_headers: Additional headers to include
+            for_multipart: When True, omit Content-Type so httpx sets multipart boundary
 
         Returns:
             Complete headers dictionary
         """
-        headers = {
-            "Content-Type": "application/json",
+        headers: dict[str, str] = {
             "Accept": "application/json",
             "User-Agent": f"ai-lib-python/{_get_ua_version()}",
         }
+        if not for_multipart:
+            headers["Content-Type"] = "application/json"
 
         # Add auth headers
         headers.update(self._auth_headers)
@@ -189,6 +196,8 @@ class HttpTransport:
         json: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
         params: dict[str, Any] | None = None,
+        files: Any | None = None,
+        data: Any | None = None,
     ) -> httpx.Response:
         """Make an HTTP request.
 
@@ -198,6 +207,8 @@ class HttpTransport:
             json: JSON body
             headers: Additional headers
             params: Query parameters
+            files: Multipart files (same HttpTransport client — no second stack)
+            data: Form fields for multipart uploads
 
         Returns:
             HTTP response
@@ -207,7 +218,8 @@ class HttpTransport:
             RemoteError: On API errors (4xx, 5xx)
         """
         client = self._get_client()
-        request_headers = self._build_headers(headers)
+        for_multipart = files is not None
+        request_headers = self._build_headers(headers, for_multipart=for_multipart)
         request_params = dict(self._auth_query_params)
         if params:
             request_params.update(params)
@@ -219,6 +231,8 @@ class HttpTransport:
                 json=json,
                 headers=request_headers,
                 params=request_params or None,
+                files=files,
+                data=data,
             )
         except httpx.ConnectError as e:
             raise TransportError(
@@ -261,21 +275,63 @@ class HttpTransport:
     async def post(
         self,
         path: str,
-        json: dict[str, Any],
+        json: dict[str, Any] | None = None,
         *,
         headers: dict[str, str] | None = None,
+        files: Any | None = None,
+        data: Any | None = None,
     ) -> httpx.Response:
-        """Make a POST request.
+        """Make a POST request (JSON or multipart) on the shared client.
 
         Args:
             path: Request path
-            json: JSON body
+            json: JSON body (omit when using files/data)
             headers: Additional headers
+            files: Multipart files
+            data: Multipart form fields
 
         Returns:
             HTTP response
         """
-        return await self.request("POST", path, json=json, headers=headers)
+        return await self.request(
+            "POST", path, json=json, headers=headers, files=files, data=data
+        )
+
+    @classmethod
+    def with_explicit_bearer(
+        cls,
+        *,
+        base_url: str,
+        api_key: str,
+        model_id: str | None = None,
+        timeout: float | None = None,
+    ) -> HttpTransport:
+        """Build transport when only base_url + bearer secret are known.
+
+        Delegates to the same constructor as protocol-driven clients — not a
+        second HTTP stack ([GOV-007]). Prefer a real manifest whenever available.
+        """
+        from ai_lib_python.protocol.manifest import ProtocolManifest
+
+        manifest = ProtocolManifest.model_validate(
+            {
+                "id": "explicit",
+                "protocol_version": "1.0",
+                "endpoint": {
+                    "base_url": base_url,
+                    "auth": {"type": "bearer", "token_env": "AI_LIB_EXPLICIT_API_KEY"},
+                },
+                "capabilities": {"streaming": False, "tools": False, "vision": False},
+                "status": "stable",
+            }
+        )
+        return cls(
+            manifest=manifest,
+            model_id=model_id,
+            api_key=api_key,
+            base_url_override=base_url,
+            timeout=timeout,
+        )
 
     async def get(
         self,
