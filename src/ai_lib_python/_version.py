@@ -1,4 +1,4 @@
-"""Package version — single source via installed distribution metadata."""
+"""Package version 鈥?single source via installed distribution metadata."""
 
 from __future__ import annotations
 
@@ -8,6 +8,6 @@ try:
     try:
         __version__ = version("ai-lib-python")
     except PackageNotFoundError:
-        __version__ = "1.1.0"
+        __version__ = "1.2.0"
 except ImportError:  # pragma: no cover - Python < 3.8 guard
-    __version__ = "1.1.0"
+    __version__ = "1.2.0"

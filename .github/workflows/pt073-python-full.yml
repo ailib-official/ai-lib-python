@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ailib-official/ai-protocol
-          ref: 2743912f9a88d7255a23953d4a74b5d2b453fa2a
+          ref: d61b70137ef1f7b736a8945a9105f7e766b24906
           path: ai-protocol
 
       - name: Setup Python
@@ -40,17 +40,17 @@ jobs:
       - name: Install package (dev extras)
         run: pip install -e ".[dev]"
 
-      - name: E/P boundary â€?Python
+      - name: E/P boundary ï¿½?Python
         run: |
           python "${{ github.workspace }}/ai-protocol/tests/compliance/ep-boundary/check_ep_boundary.py" \
             --python-root "${{ github.workspace }}/ai-lib-python"
 
-      - name: ExecutionMetadata samples â€?schema validation
+      - name: ExecutionMetadata samples ï¿½?schema validation
         run: |
           python "${{ github.workspace }}/ai-protocol/tests/compliance/ep-boundary/validate_execution_metadata_samples.py" \
             --protocol-root "${{ github.workspace }}/ai-protocol"
 
-      - name: Contact layer â€?import smoke
+      - name: Contact layer ï¿½?import smoke
         run: |
           python -c "import ai_lib_python.routing, ai_lib_python.resilience"
 
@@ -59,12 +59,12 @@ jobs:
           COMPLIANCE_DIR: ${{ github.workspace }}/ai-protocol/tests/compliance
         run: python -m pytest tests/compliance/ -q --tb=short
 
-      - name: Architecture â€?import boundary
+      - name: Architecture ï¿½?import boundary
         env:
           COMPLIANCE_DIR: ${{ github.workspace }}/ai-protocol/tests/compliance
         run: python -m pytest tests/architecture/test_execution_layer_import_boundary.py -q --tb=short
 
-      - name: ExecutionMetadata â€?runtime schema test
+      - name: ExecutionMetadata ï¿½?runtime schema test
         env:
           AI_PROTOCOL_DIR: ${{ github.workspace }}/ai-protocol
         run: python -m pytest tests/types/test_execution_metadata_schema.py -q --tb=short

@@ -1,6 +1,6 @@
 # ai-lib-python
 
-**Protocol runtime for [AI-Protocol](https://github.com/ailib-official/ai-protocol)** — async Python reference implementation (v**1.1.0**).
+**Protocol runtime for [AI-Protocol](https://github.com/ailib-official/ai-protocol)** — async Python reference implementation (v**1.2.0**).
 
 [中文文档](README_CN.md)
 
@@ -22,7 +22,7 @@ This is protocol-driven for chat, but not “zero provider code”: the repo als
 | Policy (P) | `resilience`, `cache`, `routing`, `plugins`, `guardrails`, `batch`, `telemetry`, `tokens`, `registry` | Retry, rate limits, routing, telemetry — opt-in beside the client |
 | Facade | `ai_lib_python` (root) | Stable imports + examples + compliance tests |
 
-Published on [PyPI](https://pypi.org/project/ai-lib-python/): **`ai-lib-python` 1.1.0**. Python **3.10+**.
+Published on [PyPI](https://pypi.org/project/ai-lib-python/): **`ai-lib-python` 1.2.0**. Python **3.10+**.
 
 > **Note:** Git `main` may include protocol/identity work landed after the last PyPI cut (e.g. marketplace alias resolve). Match dependency versions to the tag you intend; see [CHANGELOG](CHANGELOG.md) `Unreleased`.
 
