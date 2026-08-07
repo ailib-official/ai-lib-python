@@ -47,7 +47,7 @@ stt = []
 tts = []
 reranking = []
 
-# Policy-layer marker (routing, resilience, guardrails, batch, plugins, telemetry, â€?
+# Policy-layer marker (routing, resilience, guardrails, batch, plugins, telemetry, â€¦)
 contact = []
 
 # Infrastructure extras
