@@ -104,6 +104,10 @@ _DSML_PARAMETER_RE = re.compile(
     rf"(?s)<{_DSML_TAG}parameter\s+name=\"([^\"]+)\"[^>]*>(.*?)</{_DSML_TAG}parameter>"
 )
 _DSML_WRAPPER_RE = re.compile(rf"(?s)<{_DSML_TAG}tool_calls>\s*(.*?)\s*</{_DSML_TAG}tool_calls>")
+# Hybrid DSML+JSON (ttc-010 / ttc-015): tool_call(s) or _call wrapping standard JSON body.
+_DSML_TOOL_CALL_RE = re.compile(
+    rf"(?s)<{_DSML_TAG}(?:tool_calls?|_call)(?:\s+[^>]*)?>(.*?)</{_DSML_TAG}(?:tool_calls?|_call)>"
+)
 
 
 def _default_lenient_parser() -> StandardTextToolParser:
@@ -213,27 +217,47 @@ def _parse_dsml_dialect(text: str) -> tuple[list[TextParsedToolCall], list[tuple
     tool_calls: list[TextParsedToolCall] = []
     spans_to_remove: list[tuple[int, int]] = []
 
+    # Hybrid DSML tool_call + JSON (ttc-010) before invoke/parameter (ttc-007).
+    for match in _DSML_TOOL_CALL_RE.finditer(text):
+        body = match.group(1) or ""
+        attr_name = _extract_name_from_open_tag(match.group(0))
+        parsed = _parse_json_body(body, attr_name)
+        if parsed is None:
+            continue
+        name, arguments = parsed
+        idx = len(tool_calls)
+        tool_calls.append(TextParsedToolCall(id=f"text_tool_{idx}", name=name, arguments=arguments))
+        spans_to_remove.append((match.start(), match.end()))
+
     for match in _DSML_INVOKE_RE.finditer(text):
+        full_start, full_end = match.start(), match.end()
+        if any(full_start >= s and full_end <= e for s, e in spans_to_remove):
+            continue
         tool_name = (match.group(1) or "").strip()
         if not tool_name:
             continue
         body = match.group(2) or ""
-        arguments: dict[str, Any] = {}
+        invoke_args: dict[str, Any] = {}
         for param in _DSML_PARAMETER_RE.finditer(body):
             key = param.group(1) or ""
             value = (param.group(2) or "").strip()
             if key:
-                arguments[key] = value
+                invoke_args[key] = value
         idx = len(tool_calls)
         tool_calls.append(
-            TextParsedToolCall(id=f"text_tool_{idx}", name=tool_name, arguments=arguments)
+            TextParsedToolCall(id=f"text_tool_{idx}", name=tool_name, arguments=invoke_args)
         )
-        spans_to_remove.append((match.start(), match.end()))
+        spans_to_remove.append((full_start, full_end))
 
     if tool_calls:
         wrapper = _DSML_WRAPPER_RE.search(text)
         if wrapper:
-            spans_to_remove = [(wrapper.start(), wrapper.end())]
+            w_start, w_end = wrapper.start(), wrapper.end()
+            only_inside = spans_to_remove and all(
+                s >= w_start and e <= w_end for s, e in spans_to_remove
+            )
+            if only_inside:
+                spans_to_remove = [(w_start, w_end)]
 
     return tool_calls, spans_to_remove
 
