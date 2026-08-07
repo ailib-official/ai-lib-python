@@ -237,15 +237,15 @@ def _parse_dsml_dialect(text: str) -> tuple[list[TextParsedToolCall], list[tuple
         if not tool_name:
             continue
         body = match.group(2) or ""
-        arguments: dict[str, Any] = {}
+        invoke_args: dict[str, Any] = {}
         for param in _DSML_PARAMETER_RE.finditer(body):
             key = param.group(1) or ""
             value = (param.group(2) or "").strip()
             if key:
-                arguments[key] = value
+                invoke_args[key] = value
         idx = len(tool_calls)
         tool_calls.append(
-            TextParsedToolCall(id=f"text_tool_{idx}", name=tool_name, arguments=arguments)
+            TextParsedToolCall(id=f"text_tool_{idx}", name=tool_name, arguments=invoke_args)
         )
         spans_to_remove.append((full_start, full_end))
 
