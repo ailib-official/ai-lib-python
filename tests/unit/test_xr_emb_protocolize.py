@@ -61,7 +61,11 @@ def test_rerank_path_fallback() -> None:
 @pytest.mark.asyncio
 async def test_stt_builder_uses_http_transport() -> None:
     client = await (
-        SttClient.builder().model("whisper-1").api_key("k").base_url("https://api.openai.com").build()
+        SttClient.builder()
+        .model("whisper-1")
+        .api_key("k")
+        .base_url("https://api.openai.com")
+        .build()
     )
     assert isinstance(client._transport, HttpTransport)
     assert client._transport._base_url == "https://api.openai.com"

@@ -293,9 +293,7 @@ class HttpTransport:
         Returns:
             HTTP response
         """
-        return await self.request(
-            "POST", path, json=json, headers=headers, files=files, data=data
-        )
+        return await self.request("POST", path, json=json, headers=headers, files=files, data=data)
 
     @classmethod
     def with_explicit_bearer(
