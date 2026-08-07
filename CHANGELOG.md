@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-07
+
+### Milestone
+
+- **GOV-007 Wave2 + ttc-010 parity**: Ancillary APIs via `HttpTransport`; DSML `tool_call`+JSON remaining_text strip. PyPI **1.2.0**. PROTO-PIN ai-protocol **v1.2.0** (`d61b701`).
+
+### Changed
+
+- **GOV-007**: STT / TTS / rerank use shared `HttpTransport` (no parallel HTTP dialect).
+- **ttc-010**: Lenient DSML-delimited `tool_call` wrappers with standard JSON body parse and strip correctly.
+
 ## [1.1.0] - 2026-07-31
 
 ### Changed
@@ -695,7 +706,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mypy strict mode
 - ruff linting
 
-[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/ailib-official/ai-lib-python/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ailib-official/ai-lib-python/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ailib-official/ai-lib-python/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/ailib-official/ai-lib-python/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ailib-official/ai-lib-python/compare/v0.8.6...v1.0.0
