@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **ALP-TTC-012**: Lenient parse-aid accepts bare `<invoke>`/`<parameter>` (not DSML);
+  L2/L3 prompts forbid those tags and no longer claim they "WILL BE IGNORED".
+
 ## [1.2.0] - 2026-08-07
 
 ### Milestone
