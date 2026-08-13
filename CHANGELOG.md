@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **ALP-TTC-012**: Lenient parse-aid accepts bare `<invoke>`/`<parameter>` (not DSML);
   L2/L3 prompts forbid those tags and no longer claim they "WILL BE IGNORED".
+- **PROTO-PIN**: CI checkouts `ailib-official/ai-protocol` `29015b4` (PT-TTC-012 +
+  PT-GEN-003; npm protocol still 1.2.0). Same pin class as ai-lib-rust #67.
 
 ## [1.2.0] - 2026-08-07
 
