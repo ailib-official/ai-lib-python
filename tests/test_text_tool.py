@@ -79,8 +79,47 @@ def test_prompt_l2_contains_counterexamples() -> None:
     ]
     prompt = parser.prompt_instructions(tools)
     assert "<tool_call>" in prompt
-    assert "WILL BE IGNORED" in prompt
+    assert "<invoke>" in prompt
+    assert "WILL BE IGNORED" not in prompt
     assert "shell" in prompt
+
+
+def test_lenient_bare_invoke_parameter() -> None:
+    parser = StandardTextToolParser(config=TextToolConfig(lenient_parsing=True))
+    text = (
+        '<invoke name="shell">\n'
+        '<parameter name="command">git log --oneline -5</parameter>\n'
+        "</invoke>"
+    )
+    remaining, calls = parser.parse(text)
+    assert remaining == ""
+    assert len(calls) == 1
+    assert calls[0].name == "shell"
+    assert calls[0].arguments["command"] == "git log --oneline -5"
+
+
+def test_strict_does_not_parse_bare_invoke() -> None:
+    parser = StandardTextToolParser(config=TextToolConfig(lenient_parsing=False))
+    text = '<invoke name="shell"><parameter name="command">pwd</parameter></invoke>'
+    remaining, calls = parser.parse(text)
+    assert remaining == text
+    assert calls == []
+
+
+def test_lenient_tool_calls_wrapper_around_bare_invoke() -> None:
+    parser = StandardTextToolParser(config=TextToolConfig(lenient_parsing=True))
+    text = (
+        "<tool_calls>\n"
+        '<invoke name="shell">\n'
+        '<parameter name="command">pwd</parameter>\n'
+        "</invoke>\n"
+        "</tool_calls>"
+    )
+    remaining, calls = parser.parse(text)
+    assert remaining == ""
+    assert len(calls) == 1
+    assert calls[0].name == "shell"
+    assert calls[0].arguments["command"] == "pwd"
 
 
 def test_lenient_plain_shell_body_dialect() -> None:

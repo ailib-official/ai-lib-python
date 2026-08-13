@@ -108,6 +108,10 @@ _DSML_WRAPPER_RE = re.compile(rf"(?s)<{_DSML_TAG}tool_calls>\s*(.*?)\s*</{_DSML_
 _DSML_TOOL_CALL_RE = re.compile(
     rf"(?s)<{_DSML_TAG}(?:tool_calls?|_call)(?:\s+[^>]*)?>(.*?)</{_DSML_TAG}(?:tool_calls?|_call)>"
 )
+# Bare Anthropic-style invoke/parameter (no DSML prefix). Lenient parse-aid
+# (format.yaml tag: invoke); not a product format; not vendor-gated.
+_BARE_INVOKE_RE = re.compile(r'(?s)<invoke\s+name="([^"]+)">(.*?)</invoke>')
+_BARE_PARAMETER_RE = re.compile(r'(?s)<parameter\s+name="([^"]+)"[^>]*>(.*?)</parameter>')
 
 
 def _default_lenient_parser() -> StandardTextToolParser:
@@ -262,6 +266,31 @@ def _parse_dsml_dialect(text: str) -> tuple[list[TextParsedToolCall], list[tuple
     return tool_calls, spans_to_remove
 
 
+def _parse_bare_invoke_dialect(text: str) -> tuple[list[TextParsedToolCall], list[tuple[int, int]]]:
+    """Parse bare ``<invoke name=…><parameter>…`` blocks (ALR-TTC-012 / #66)."""
+    tool_calls: list[TextParsedToolCall] = []
+    spans_to_remove: list[tuple[int, int]] = []
+    for match in _BARE_INVOKE_RE.finditer(text):
+        tool_name = (match.group(1) or "").strip()
+        if not tool_name:
+            continue
+        body = match.group(2) or ""
+        invoke_args: dict[str, Any] = {}
+        for param in _BARE_PARAMETER_RE.finditer(body):
+            key = param.group(1) or ""
+            value = (param.group(2) or "").strip()
+            if key:
+                invoke_args[key] = value
+        if not invoke_args:
+            continue
+        idx = len(tool_calls)
+        tool_calls.append(
+            TextParsedToolCall(id=f"text_tool_{idx}", name=tool_name, arguments=invoke_args)
+        )
+        spans_to_remove.append((match.start(), match.end()))
+    return tool_calls, spans_to_remove
+
+
 def _unwrap_tool_calls_wrapper(text: str) -> str:
     match = _OUTER_WRAPPER_RE.search(text)
     return match.group(1) if match else text
@@ -333,15 +362,20 @@ def _parse_text_tool_calls(
             tool_calls.extend(dsml_calls)
             spans_to_remove.extend(dsml_spans)
         else:
-            dialect_result = (
-                _try_parse_configured_dialects(remaining, config.dialects)
-                if config.dialects
-                else _try_parse_legacy_dialects(remaining)
-            )
-            if dialect_result:
-                call, span = dialect_result
-                tool_calls.append(call)
-                spans_to_remove.append(span)
+            invoke_calls, invoke_spans = _parse_bare_invoke_dialect(remaining)
+            if invoke_calls:
+                tool_calls.extend(invoke_calls)
+                spans_to_remove.extend(invoke_spans)
+            else:
+                dialect_result = (
+                    _try_parse_configured_dialects(remaining, config.dialects)
+                    if config.dialects
+                    else _try_parse_legacy_dialects(remaining)
+                )
+                if dialect_result:
+                    call, span = dialect_result
+                    tool_calls.append(call)
+                    spans_to_remove.append(span)
 
     chars = list(remaining)
     for start, end in sorted(spans_to_remove, key=lambda x: x[0], reverse=True):
@@ -357,42 +391,63 @@ def _parse_text_tool_calls(
 def _generate_prompt_instructions(tools: list[ToolDefinition], config: TextToolConfig) -> str:
     tool_list = "\n".join(f"- {t.function.name}: {t.function.description or ''}" for t in tools)
     is_zh = config.locale.startswith("zh")
+    dsml_ban = "\uff5c\uff5cDSML\uff5c\uff5c"
 
     if config.prompt_level == PromptLevel.L1 and is_zh:
         return (
             "## 工具调用协议\n\n"
+            "优先使用 API 原生 tool_calls. 若必须用文本, 仅允许:\n"
             '<tool_call>\n{"name": "工具名", "arguments": {"参数": "值"}}\n</tool_call>\n\n'
             f"可用工具:\n{tool_list}"
         )
     if config.prompt_level == PromptLevel.L1:
         return (
             "## Tool Use Protocol\n\n"
+            "Prefer native API tool_calls when available. If you must emit text, use ONLY:\n"
             '<tool_call>\n{"name": "tool_name", "arguments": {"param": "value"}}\n</tool_call>\n\n'
             f"Available tools:\n{tool_list}"
         )
     if config.prompt_level == PromptLevel.L2 and is_zh:
         return (
             "## 工具调用协议\n\n"
+            "优先使用 API 原生 tool_calls (不要把工具调用写进正文).\n"
+            "若必须用文本, 格式必须完全一致:\n"
             '<tool_call>\n{"name": "工具名", "arguments": {"参数": "值"}}\n</tool_call>\n\n'
             "关键规则:\n"
-            "- 只能使用 <tool_call>。<shell>、<bash>、<function> 将被忽略。\n"
-            '- JSON 必须包含 "name" 和 "arguments"。\n\n'
+            "- 开闭标签必须都是 </tool_call> (禁止混用其它闭标签).\n"
+            '- JSON 必须包含 "name" (字符串) 和 "arguments" (对象).\n'
+            f"- 禁止 <shell>、<bash>、<function>、<invoke>、<parameter>、以及任何含 {dsml_ban} 的 DSML 标记.\n"
+            "- 禁止外包 <tool_calls> 或其它包装标签.\n\n"
             f"可用工具:\n{tool_list}"
         )
     if config.prompt_level == PromptLevel.L2:
         return (
             "## Tool Use Protocol\n\n"
+            "Prefer native API tool_calls (do not put tool invocations in plain text).\n"
+            "If you must emit text tool calls, use this exact template:\n"
             '<tool_call>\n{"name": "tool_name", "arguments": {"param": "value"}}\n</tool_call>\n\n'
             "CRITICAL RULES:\n"
-            "- Use <tool_call> ONLY. <shell>, <bash>, <function> WILL BE IGNORED.\n"
+            "- Open and close tags must both be tool_call (no mismatched closes).\n"
             '- JSON must contain "name" (string) and "arguments" (object).\n'
+            f"- NEVER use <shell>, <bash>, <function>, <invoke>, <parameter>, or any {dsml_ban} DSML markup.\n"
             "- Do NOT wrap in <tool_calls> or any other tag.\n\n"
             f"Available tools:\n{tool_list}"
         )
+    if is_zh:
+        return (
+            "## 工具调用协议 - 示例\n\n"
+            "优先使用 API 原生 tool_calls. 文本回退示例 (必须逐字遵守):\n"
+            '<tool_call>\n{"name": "shell", "arguments": {"command": "ls -la"}}\n</tool_call>\n\n'
+            f"关键: 禁止 <shell>/<bash>/<function>/<invoke>/<parameter>, 禁止任何 {dsml_ban} DSML 标记; "
+            'JSON 必须含 "name" 与 "arguments" 对象.\n\n'
+            f"可用工具:\n{tool_list}"
+        )
     return (
         "## Tool Use Protocol — Example\n\n"
+        "Prefer native API tool_calls. Text fallback example (follow exactly):\n"
         '<tool_call>\n{"name": "shell", "arguments": {"command": "ls -la"}}\n</tool_call>\n\n'
-        "CRITICAL: <shell>, <bash>, <function> formats WILL BE IGNORED.\n\n"
+        f"CRITICAL: NEVER use <shell>, <bash>, <function>, <invoke>, <parameter>, or any {dsml_ban} DSML markup. "
+        'JSON must include "name" and an "arguments" object.\n\n'
         f"Available tools:\n{tool_list}"
     )
 
