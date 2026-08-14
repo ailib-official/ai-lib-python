@@ -116,12 +116,13 @@ Always exported from `ai_lib_python`:
 - **Client:** `AiClient`, `AiClientBuilder`, `ChatResponse`, `CallStats`
 - **Types:** `Message`, `MessageRole`, `MessageContent`, `ContentBlock`, `StreamingEvent`, `ToolCall`, `ToolDefinition`
 - **Errors:** `AiLibError`, `ProtocolError`, `TransportError`
+- **Experimental generative (ALP-GEN):** `ImageGenerationClient`, `SpeechToTextClient`, `TextToSpeechClient`, capability keys / endpoint helpers
 - **Feature probes:** `HAS_VISION`, `HAS_AUDIO`, `HAS_TELEMETRY`, `HAS_TOKENIZER`, `HAS_WATCHDOG`, `HAS_KEYRING`, `require_extra`
 - **Version:** `__version__` (from installed distribution metadata)
 
 Subpackages (import explicitly when needed):
 
-- **Execution:** `ai_lib_python.pipeline`, `protocol`, `transport`, `structured`, `embeddings`, `stt`, `tts`, `rerank`, `multimodal`, `mcp`, `computer_use`
+- **Execution:** `ai_lib_python.pipeline`, `protocol`, `transport`, `structured`, `embeddings`, `stt`, `tts`, `generative` (Experimental PT-GEN), `rerank`, `multimodal`, `mcp`, `computer_use`
 - **Types (extended):** `ai_lib_python.types` — `ExecutionResult`, `ExecutionMetadata`, `ExecutionUsage`, text-tool / TTC (`StandardTextToolParser`, `ToolCallingPolicy`, `TextToolConfig`, …)
 - **Policy:** `ai_lib_python.resilience`, `cache`, `routing`, `plugins`, `guardrails`, `batch`, `telemetry`, `tokens`, `registry`
 - **Advanced:** `ai_lib_python.drivers` — `ProviderDriver`, `create_driver` (not used by default `AiClient` chat path)
@@ -134,7 +135,7 @@ Subpackages (import explicitly when needed):
 | `audio` | Audio helpers (`soundfile`) | `HAS_AUDIO` |
 | `embeddings` | `EmbeddingClient` | Protocolized builders: `from_model` / `from_manifest` (no silent OpenAI host default) |
 | `structured` | Structured / JSON mode helpers | Marker extra (code always importable) |
-| `stt` / `tts` / `reranking` | `SttClient`, `TtsClient`, `RerankerClient` | Standalone service clients; rerank supports `from_model` / `from_manifest` |
+| `stt` / `tts` / `reranking` | `SttClient`, `TtsClient`, `RerankerClient` | Standalone service clients; STT/TTS `from_manifest` prefers PT-GEN `speech_to_text` / `text_to_speech` when declared. Prefer top-level Experimental `SpeechToTextClient` / `TextToSpeechClient` / `ImageGenerationClient` for new hosts |
 | `batch` / `agentic` | Batch / agentic markers | Policy / capability markers |
 | `contact` | Policy-layer install marker | Routing, resilience, guardrails, batch, plugins, telemetry — physical split deferred |
 | `telemetry` | OpenTelemetry sinks | `HAS_TELEMETRY`; feedback types in `telemetry` subpackage |

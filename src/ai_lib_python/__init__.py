@@ -20,6 +20,23 @@ from ai_lib_python._features import (
 from ai_lib_python._version import __version__
 from ai_lib_python.client import AiClient, AiClientBuilder, CallStats, ChatResponse
 from ai_lib_python.errors import AiLibError, ProtocolError, TransportError
+from ai_lib_python.generative import (
+    KEY_IMAGE_GENERATION,
+    KEY_SPEECH_TO_TEXT,
+    KEY_TEXT_TO_SPEECH,
+    GeneratedImage,
+    ImageGenerationClient,
+    ImageGenerationRequest,
+    ImageGenerationResult,
+    SpeechToTextClient,
+    SpeechToTextRequest,
+    SpeechToTextResult,
+    TextToSpeechClient,
+    TextToSpeechRequest,
+    TextToSpeechResult,
+    require_generative_endpoint,
+    resolve_generative_endpoint,
+)
 from ai_lib_python.types.events import StreamingEvent
 from ai_lib_python.types.message import (
     ContentBlock,
@@ -46,6 +63,22 @@ __all__ = [
     "CallStats",
     "ChatResponse",
     "ContentBlock",
+    # Experimental generative (ALP-GEN-001/002) — not a stable AiClient facade
+    "GeneratedImage",
+    "ImageGenerationClient",
+    "ImageGenerationRequest",
+    "ImageGenerationResult",
+    "KEY_IMAGE_GENERATION",
+    "KEY_SPEECH_TO_TEXT",
+    "KEY_TEXT_TO_SPEECH",
+    "SpeechToTextClient",
+    "SpeechToTextRequest",
+    "SpeechToTextResult",
+    "TextToSpeechClient",
+    "TextToSpeechRequest",
+    "TextToSpeechResult",
+    "require_generative_endpoint",
+    "resolve_generative_endpoint",
     # Types - Message
     "Message",
     "MessageContent",

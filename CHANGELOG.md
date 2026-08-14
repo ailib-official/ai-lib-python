@@ -12,10 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Experimental generative L-Exec** (ALP-GEN-001): `supports_generative_for_model`
   (omit ≠ false) plus `ImageGenerationClient` / `SpeechToTextClient` /
   `TextToSpeechClient` resolving `endpoints.<key>` via shared `HttpTransport`.
-  Does not replace legacy `stt` / `tts` clients.
+- **Package-level generative exports** (ALP-GEN-002): Experimental generative
+  clients/types re-exported from `ai_lib_python` (discoverable without digging
+  into `generative/`).
 
 ### Changed
 
+- **Legacy STT/TTS prefer PT-GEN** (ALP-GEN-002): `SttClient` / `TtsClient`
+  `from_manifest` builders resolve `endpoints.speech_to_text` /
+  `endpoints.text_to_speech` when the model declares the capability (omit≠false);
+  explicit `endpoint_path` still wins; otherwise legacy OpenAI default paths.
 - **ALP-TTC-012**: Lenient parse-aid accepts bare `<invoke>`/`<parameter>` (not DSML);
   L2/L3 prompts forbid those tags and no longer claim they "WILL BE IGNORED".
 - **PROTO-PIN**: CI checkouts `ailib-official/ai-protocol` `29015b4` (PT-TTC-012 +

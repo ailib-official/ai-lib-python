@@ -1,7 +1,8 @@
-"""Experimental STT / TTS via manifest L-Exec (ALP-GEN-001 / ALR-GEN-002).
+"""Experimental STT / TTS via manifest L-Exec (ALP-GEN-001/002 / ALR-GEN-002).
 
 OpenAI adapter 形状；其他 adapter 显式配置错误（与 Rust ALR-GEN-002 对齐）。
-不替换 legacy ``stt`` / ``tts`` 模块。
+Preferred host entry for PT-GEN audio. Legacy ``stt`` / ``tts`` builders
+prefer these endpoint keys when ``model_capabilities`` declare them.
 """
 
 from __future__ import annotations
