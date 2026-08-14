@@ -399,3 +399,24 @@ class ProtocolManifest(BaseModel):
         if self.error_classification:
             return self.error_classification.by_http_status.get(str(status_code))
         return None
+
+    def metadata_model_entry(self, model_id: str) -> dict[str, Any] | None:
+        """Look up Experimental ``metadata.models.<id>`` (ME-001 / PT-GEN-001)."""
+        from ai_lib_python.protocol.metadata_model import model_entry_from_extra
+
+        extra = dict(self.model_extra or {})
+        return model_entry_from_extra(extra, model_id)
+
+    def supports_generative_for_model(self, model_id: str, key: str) -> bool:
+        """Whether ``model_capabilities.<key>`` is known-true (omit ≠ false).
+
+        Provider-level ads are **not** used as a fallback for generative keys
+        (ALR-GEN-001: ``or_provider(false)``).
+        """
+        from ai_lib_python.protocol.metadata_model import (
+            supports_generative_capability,
+        )
+
+        entry = self.metadata_model_entry(model_id)
+        known = supports_generative_capability(entry, key)
+        return known.or_provider(False)
