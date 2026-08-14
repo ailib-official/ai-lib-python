@@ -116,12 +116,13 @@ client = await (
 - **客户端：** `AiClient`、`AiClientBuilder`、`ChatResponse`、`CallStats`
 - **类型：** `Message`、`MessageRole`、`MessageContent`、`ContentBlock`、`StreamingEvent`、`ToolCall`、`ToolDefinition`
 - **错误：** `AiLibError`、`ProtocolError`、`TransportError`
+- **Experimental 生成式（ALP-GEN）：** `ImageGenerationClient`、`SpeechToTextClient`、`TextToSpeechClient`，以及能力键 / endpoint 辅助
 - **特性探测：** `HAS_VISION`、`HAS_AUDIO`、`HAS_TELEMETRY`、`HAS_TOKENIZER`、`HAS_WATCHDOG`、`HAS_KEYRING`、`require_extra`
 - **版本：** `__version__`（来自已安装发行版元数据）
 
 子包（按需显式导入）：
 
-- **执行层：** `ai_lib_python.pipeline`、`protocol`、`transport`、`structured`、`embeddings`、`stt`、`tts`、`rerank`、`multimodal`、`mcp`、`computer_use`
+- **执行层：** `ai_lib_python.pipeline`、`protocol`、`transport`、`structured`、`embeddings`、`stt`、`tts`、`generative`（Experimental PT-GEN）、`rerank`、`multimodal`、`mcp`、`computer_use`
 - **扩展类型：** `ai_lib_python.types` — `ExecutionResult`、`ExecutionMetadata`、`ExecutionUsage`，以及 text-tool / TTC（`StandardTextToolParser`、`ToolCallingPolicy`、`TextToolConfig` 等）
 - **策略层：** `ai_lib_python.resilience`、`cache`、`routing`、`plugins`、`guardrails`、`batch`、`telemetry`、`tokens`、`registry`
 - **高级：** `ai_lib_python.drivers` — `ProviderDriver`、`create_driver`（默认 `AiClient` 聊天路径不使用）
@@ -134,7 +135,7 @@ client = await (
 | `audio` | 音频辅助（`soundfile`） | `HAS_AUDIO` |
 | `embeddings` | `EmbeddingClient` | 协议化构建：`from_model` / `from_manifest`（无静默 OpenAI 主机默认） |
 | `structured` | 结构化 / JSON 模式辅助 | 标记型 extra（代码本身可导入） |
-| `stt` / `tts` / `reranking` | `SttClient`、`TtsClient`、`RerankerClient` | 独立服务客户端；rerank 支持 `from_model` / `from_manifest` |
+| `stt` / `tts` / `reranking` | `SttClient`、`TtsClient`、`RerankerClient` | 独立服务客户端；STT/TTS `from_manifest` 在能力声明时优先 PT-GEN `speech_to_text` / `text_to_speech`。新宿主请优先用顶层 Experimental `SpeechToTextClient` / `TextToSpeechClient` / `ImageGenerationClient` |
 | `batch` / `agentic` | 批处理 / agentic 标记 | 策略 / 能力标记 |
 | `contact` | 策略层安装标记 | 路由、弹性、守卫、批处理、插件、遥测 — 物理拆包暂缓 |
 | `telemetry` | OpenTelemetry sinks | `HAS_TELEMETRY`；反馈类型在 `telemetry` 子包 |
