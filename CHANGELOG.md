@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental generative L-Exec** (ALP-GEN-001): `supports_generative_for_model`
+  (omit ≠ false) plus `ImageGenerationClient` / `SpeechToTextClient` /
+  `TextToSpeechClient` resolving `endpoints.<key>` via shared `HttpTransport`.
+  Does not replace legacy `stt` / `tts` clients.
+
 ### Changed
 
 - **ALP-TTC-012**: Lenient parse-aid accepts bare `<invoke>`/`<parameter>` (not DSML);
