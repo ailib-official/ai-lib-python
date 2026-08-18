@@ -110,31 +110,31 @@ class GeminiDriver(ProviderDriver):
             raw=body,
         )
 
-    def parse_stream_event(self, data: str) -> StreamingEvent | None:
+    def parse_stream_event(self, data: str) -> list[StreamingEvent]:
         stripped = data.strip()
         if not stripped:
-            return None
+            return []
 
         chunk = json.loads(stripped)
 
         if error := chunk.get("error"):
-            return StreamingEvent.stream_error(error)
+            return [StreamingEvent.stream_error(error)]
 
         candidates = chunk.get("candidates", [])
         if not candidates:
-            return None
+            return []
 
         first = candidates[0]
         parts = first.get("content", {}).get("parts", [])
 
         if parts and (text := parts[0].get("text")):
-            return StreamingEvent.content_delta(text)
+            return [StreamingEvent.content_delta(text)]
 
         reason = first.get("finishReason")
         if reason:
-            return StreamingEvent.stream_end(_FINISH_MAP.get(reason, reason.lower()))
+            return [StreamingEvent.stream_end(_FINISH_MAP.get(reason, reason.lower()))]
 
-        return None
+        return []
 
     def supported_capabilities(self) -> list[Capability]:
         return list(self._capabilities)

@@ -19,6 +19,10 @@ from ai_lib_python.protocol.v2.capabilities import Capability
 from ai_lib_python.protocol.v2.manifest import ApiStyle
 from ai_lib_python.types.events import StreamingEvent
 from ai_lib_python.types.message import Message
+from ai_lib_python.utils.thinking_extract import (
+    thinking_from_openai_compat_delta,
+    thinking_from_openai_compat_message,
+)
 
 
 class OpenAiDriver(ProviderDriver):
@@ -69,12 +73,18 @@ class OpenAiDriver(ProviderDriver):
     def parse_response(self, body: dict[str, Any]) -> DriverResponse:
         choices = body.get("choices", [])
         first = choices[0] if choices else {}
-        msg = first.get("message", {})
+        msg = first.get("message", {}) if isinstance(first, dict) else {}
+        if not isinstance(msg, dict):
+            msg = {}
         usage_raw = body.get("usage")
+        content = msg.get("content")
+        if isinstance(content, str) and not content:
+            content = None
 
         return DriverResponse(
-            content=msg.get("content"),
-            finish_reason=first.get("finish_reason"),
+            content=content,
+            thinking=thinking_from_openai_compat_message(body),
+            finish_reason=first.get("finish_reason") if isinstance(first, dict) else None,
             usage=UsageInfo(
                 prompt_tokens=usage_raw.get("prompt_tokens", 0),
                 completion_tokens=usage_raw.get("completion_tokens", 0),
@@ -82,29 +92,38 @@ class OpenAiDriver(ProviderDriver):
             )
             if usage_raw
             else None,
-            tool_calls=msg.get("tool_calls", []),
+            tool_calls=msg.get("tool_calls", []) or [],
             raw=body,
         )
 
-    def parse_stream_event(self, data: str) -> StreamingEvent | None:
+    def parse_stream_event(self, data: str) -> list[StreamingEvent]:
         stripped = data.strip()
         if not stripped or self.is_stream_done(data):
-            return None
+            return []
 
         chunk = json.loads(stripped)
         choices = chunk.get("choices", [])
         if not choices:
-            return None
+            return []
 
-        delta = choices[0].get("delta", {})
+        out: list[StreamingEvent] = []
 
-        if content := delta.get("content"):
-            return StreamingEvent.content_delta(content)
+        # Thinking first when co-present with content (ALP-RSN-001).
+        if thinking := thinking_from_openai_compat_delta(chunk):
+            out.append(StreamingEvent.thinking_delta(thinking))
 
-        if reason := choices[0].get("finish_reason"):
-            return StreamingEvent.stream_end(reason)
+        delta = choices[0].get("delta", {}) if isinstance(choices[0], dict) else {}
+        if isinstance(delta, dict):
+            content = delta.get("content")
+            if isinstance(content, str) and content:
+                out.append(StreamingEvent.content_delta(content))
 
-        return None
+        if not out:
+            reason = choices[0].get("finish_reason") if isinstance(choices[0], dict) else None
+            if reason:
+                out.append(StreamingEvent.stream_end(reason))
+
+        return out
 
     def supported_capabilities(self) -> list[Capability]:
         return list(self._capabilities)

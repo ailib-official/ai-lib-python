@@ -395,8 +395,9 @@ class AiClient:
         """Parse API response to ChatResponse.
 
         Non-streaming extraction follows ai-lib-rust ``extract_nonstream_response``:
-        manifest ``response_paths`` first, then OpenAI Chat Completions fallbacks
-        (including reasoning fields when primary content is empty).
+        manifest ``response_paths`` first, then OpenAI Chat Completions fallbacks.
+        Structured reasoning stays in ``thinking`` — never promote into ``content``
+        (ALP-RSN-001 / ALR-RSN-001).
 
         Args:
             data: Raw API response
@@ -406,6 +407,7 @@ class AiClient:
             Parsed ChatResponse
         """
         from ai_lib_python.pipeline.select import get_value_at_path
+        from ai_lib_python.utils.thinking_extract import thinking_from_openai_compat_message
 
         response = ChatResponse(raw_response=data)
         active_manifest = manifest if manifest is not None else self._manifest
@@ -426,12 +428,12 @@ class AiClient:
         content_paths.append("choices[0].message.content")
         response.content = first_non_empty_str(content_paths)
 
-        if not response.content:
-            reasoning_paths: list[str | None] = []
-            if rp:
-                reasoning_paths.extend([rp.reasoning_content, rp.reasoning])
-            reasoning_paths.append("choices[0].message.reasoning_content")
-            response.content = first_non_empty_str(reasoning_paths)
+        # Structured reasoning → thinking only (do not backfill empty content).
+        thinking = thinking_from_openai_compat_message(data)
+        if not thinking and rp:
+            thinking = first_non_empty_str([rp.reasoning_content, rp.reasoning]) or None
+        if thinking:
+            response.thinking = thinking
 
         response.usage = None
         if rp and rp.usage:

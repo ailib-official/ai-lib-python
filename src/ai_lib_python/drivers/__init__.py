@@ -33,6 +33,7 @@ class DriverResponse:
     """Unified chat response from provider."""
 
     content: str | None = None
+    thinking: str | None = None
     finish_reason: str | None = None
     usage: UsageInfo | None = None
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
@@ -84,8 +85,11 @@ class ProviderDriver(ABC):
         """Parse a non-streaming response into unified format."""
 
     @abstractmethod
-    def parse_stream_event(self, data: str) -> StreamingEvent | None:
-        """Parse a single streaming event from raw SSE/NDJSON data."""
+    def parse_stream_event(self, data: str) -> list[StreamingEvent]:
+        """Parse streaming frame(s) from raw SSE/NDJSON data.
+
+        Returns zero or more events (same-frame thinking+content may yield both).
+        """
 
     @abstractmethod
     def supported_capabilities(self) -> list[Capability]:

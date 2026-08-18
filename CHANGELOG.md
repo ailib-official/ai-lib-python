@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Thinking channel parity (ALP-RSN-001)**: OpenAI-compat wire aliases
+  (`reasoning_content` / `reasoning` / `thinking` / …) → `ThinkingDelta`;
+  `ChatResponse.thinking` / `DriverResponse.thinking`; same-frame stream may
+  emit thinking then content. Shared `utils.thinking_extract` (GOV-007).
 - **Experimental generative L-Exec** (ALP-GEN-001): `supports_generative_for_model`
   (omit ≠ false) plus `ImageGenerationClient` / `SpeechToTextClient` /
   `TextToSpeechClient` resolving `endpoints.<key>` via shared `HttpTransport`.
@@ -18,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Non-stream thinking separation (ALP-RSN-001)**: empty `content` no longer
+  backfills from reasoning fields by default; reasoning stays on `thinking`.
+- **Driver `parse_stream_event`**: returns `list[StreamingEvent]` (Rust Vec
+  mirror) so same-frame thinking+content is not dropped.
 - **Legacy STT/TTS prefer PT-GEN** (ALP-GEN-002): `SttClient` / `TtsClient`
   `from_manifest` builders resolve `endpoints.speech_to_text` /
   `endpoints.text_to_speech` when the model declares the capability (omit≠false);
