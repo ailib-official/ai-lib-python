@@ -100,19 +100,26 @@ class AnthropicDriver(ProviderDriver):
             usage = UsageInfo(prompt_tokens=inp, completion_tokens=out, total_tokens=inp + out)
 
         tool_calls = [b for b in content_blocks if b.get("type") == "tool_use"]
+        thinking_parts = [
+            b.get("thinking", "")
+            for b in content_blocks
+            if isinstance(b, dict) and b.get("type") == "thinking" and b.get("thinking")
+        ]
+        thinking = "".join(thinking_parts) if thinking_parts else None
 
         return DriverResponse(
             content=text,
+            thinking=thinking,
             finish_reason=finish_reason,
             usage=usage,
             tool_calls=tool_calls,
             raw=body,
         )
 
-    def parse_stream_event(self, data: str) -> StreamingEvent | None:
+    def parse_stream_event(self, data: str) -> list[StreamingEvent]:
         stripped = data.strip()
         if not stripped:
-            return None
+            return []
 
         chunk = json.loads(stripped)
         event_type = chunk.get("type", "")
@@ -121,24 +128,24 @@ class AnthropicDriver(ProviderDriver):
             delta = chunk.get("delta", {})
             if text := delta.get("text"):
                 seq = chunk.get("index")
-                return StreamingEvent.content_delta(text, sequence_id=seq)
+                return [StreamingEvent.content_delta(text, sequence_id=seq)]
             if thinking := delta.get("thinking"):
-                return StreamingEvent.thinking_delta(thinking)
-            return None
+                return [StreamingEvent.thinking_delta(thinking)]
+            return []
 
         if event_type == "message_delta":
             reason = chunk.get("delta", {}).get("stop_reason")
             if reason:
-                return StreamingEvent.stream_end(_STOP_REASON_MAP.get(reason, reason))
-            return None
+                return [StreamingEvent.stream_end(_STOP_REASON_MAP.get(reason, reason))]
+            return []
 
         if event_type == "message_stop":
-            return StreamingEvent.stream_end("stop")
+            return [StreamingEvent.stream_end("stop")]
 
         if event_type == "error":
-            return StreamingEvent.stream_error(chunk.get("error"))
+            return [StreamingEvent.stream_error(chunk.get("error"))]
 
-        return None
+        return []
 
     def supported_capabilities(self) -> list[Capability]:
         return list(self._capabilities)

@@ -41,10 +41,10 @@ class TestOpenAiDriver:
 
     def test_parse_stream_event(self) -> None:
         data = json.dumps({"choices": [{"delta": {"content": "World"}, "index": 0}]})
-        event = self.driver.parse_stream_event(data)
-        assert event is not None
-        assert event.is_content_delta
-        assert event.as_content_delta.content == "World"
+        events = self.driver.parse_stream_event(data)
+        assert len(events) == 1
+        assert events[0].is_content_delta
+        assert events[0].as_content_delta.content == "World"
 
     def test_stream_done(self) -> None:
         assert self.driver.is_stream_done("[DONE]")
@@ -95,10 +95,10 @@ class TestAnthropicDriver:
                 "delta": {"type": "text_delta", "text": "Hi"},
             }
         )
-        event = self.driver.parse_stream_event(data)
-        assert event is not None
-        assert event.is_content_delta
-        assert event.as_content_delta.content == "Hi"
+        events = self.driver.parse_stream_event(data)
+        assert len(events) == 1
+        assert events[0].is_content_delta
+        assert events[0].as_content_delta.content == "Hi"
 
 
 class TestGeminiDriver:
@@ -166,10 +166,10 @@ class TestGeminiDriver:
         data = json.dumps(
             {"candidates": [{"content": {"parts": [{"text": "World"}], "role": "model"}}]}
         )
-        event = self.driver.parse_stream_event(data)
-        assert event is not None
-        assert event.is_content_delta
-        assert event.as_content_delta.content == "World"
+        events = self.driver.parse_stream_event(data)
+        assert len(events) == 1
+        assert events[0].is_content_delta
+        assert events[0].as_content_delta.content == "World"
 
 
 class TestCreateDriver:

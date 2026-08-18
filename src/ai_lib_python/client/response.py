@@ -21,6 +21,8 @@ class ChatResponse:
 
     Attributes:
         content: The generated text content
+        thinking: Aggregated extended thinking / reasoning (ALP-RSN-001).
+            Empty when absent. Additive — does not change ``content`` semantics.
         tool_calls: List of tool calls requested by the model
         finish_reason: Why the model stopped generating
         usage: Token usage information
@@ -29,6 +31,7 @@ class ChatResponse:
     """
 
     content: str = ""
+    thinking: str = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
     finish_reason: str | None = None
     usage: dict[str, Any] | None = None

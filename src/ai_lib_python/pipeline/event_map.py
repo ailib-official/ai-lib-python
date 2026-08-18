@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from ai_lib_python.pipeline.base import EventMapper
 from ai_lib_python.types.events import StreamingEvent
+from ai_lib_python.utils.thinking_extract import thinking_from_openai_compat_delta
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -288,9 +289,10 @@ class DefaultEventMapper(EventMapper):
             events.append(StreamingEvent.stream_error(error=frame["error"]))
             return events
 
-        reasoning = self._get_nested(frame, "choices.0.delta.reasoning_content")
+        # Thinking first when co-present with content (ALP-RSN-001 / ALR mirror).
+        reasoning = thinking_from_openai_compat_delta(frame)
         if reasoning:
-            events.append(StreamingEvent.thinking_delta(thinking=str(reasoning)))
+            events.append(StreamingEvent.thinking_delta(thinking=reasoning))
 
         content = self._get_nested(frame, self._content_path)
         if content:
@@ -372,10 +374,10 @@ class DefaultEventMapper(EventMapper):
                 yield StreamingEvent.stream_error(error=frame["error"])
                 continue
 
-            # Extract reasoning_content (OpenAI extended thinking)
-            reasoning = self._get_nested(frame, "choices.0.delta.reasoning_content")
+            # Structured thinking aliases (ALP-RSN-001); keep content separate.
+            reasoning = thinking_from_openai_compat_delta(frame)
             if reasoning:
-                yield StreamingEvent.thinking_delta(thinking=str(reasoning))
+                yield StreamingEvent.thinking_delta(thinking=reasoning)
 
             # Extract content delta
             content = self._get_nested(frame, self._content_path)

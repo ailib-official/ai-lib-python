@@ -82,7 +82,7 @@ def test_parse_response_v2_openai_fallback_when_no_response_paths() -> None:
     assert r.finish_reason == "length"
 
 
-def test_parse_response_reasoning_fallback_when_content_empty() -> None:
+def test_parse_response_reasoning_kept_separate_when_content_empty() -> None:
     manifest = _minimal_manifest()
     client = AiClient.__new__(AiClient)
     client._manifest = manifest
@@ -95,4 +95,5 @@ def test_parse_response_reasoning_fallback_when_content_empty() -> None:
         ]
     }
     r = AiClient._parse_response(client, data)
-    assert r.content == "think first"
+    assert r.content == ""
+    assert r.thinking == "think first"
